@@ -1,0 +1,27 @@
+{
+  "schema_kind": "source",
+  "schema_version": 2,
+  "project_name": "birthday-card",
+  "function": "card",
+  "message": {
+    "title": "生日快乐",
+    "subtitle": "愿新的一岁平安顺意",
+    "signature": ""
+  },
+  "media": [],
+  "approved_media_roots": [],
+  "use_case": "聊天分享",
+  "aspect_ratio": "1:1",
+  "duration_seconds": 6,
+  "output_format": "mp4",
+  "style": "warm",
+  "loop": false,
+  "facts_to_preserve": [
+    "未提供祝福对象姓名"
+  ],
+  "privacy_review": {
+    "status": "reviewed-no-sensitive-content",
+    "confirmation": "本例无图片素材，文案不含身份证件、住址、账户或未成年人信息",
+    "actions": []
+  }
+}
