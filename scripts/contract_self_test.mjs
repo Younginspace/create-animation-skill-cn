@@ -153,8 +153,12 @@ async function main() {
       browserGuardSource.includes("--proxy-server=http://127.0.0.1:9") &&
         browserGuardSource.includes("--host-resolver-rules=") &&
         guardSource.includes("HYPERFRAMES_BROWSER_PATH") &&
-        guardSource.includes("PRODUCER_HEADLESS_SHELL_PATH"),
-      "浏览器离线守卫没有同时阻断外网并固定两个 HyperFrames 浏览器入口",
+        guardSource.includes("PRODUCER_HEADLESS_SHELL_PATH") &&
+        guardSource.includes("materializeBrowserGuard") &&
+        guardSource.includes("cleanupGuardedRuntimeEnv") &&
+        checkSource.includes("cleanupGuardedRuntimeEnv") &&
+        renderSource.includes("cleanupGuardedRuntimeEnv"),
+      "浏览器离线守卫没有同时阻断外网、固定两个 HyperFrames 浏览器入口，或缺少0644克隆兼容的私有可执行副本清理",
     );
     assert(
       scaffoldSource.includes('http-equiv="Content-Security-Policy"') &&
@@ -169,7 +173,12 @@ async function main() {
         privateBriefWrapperSource.includes("rm(privateDirectory"),
       "执行者临时 source brief 缺少私有创建或覆盖 validate/scaffold 全路径的 finally 清理",
     );
-    assert(renderSource.includes("scale=512:-2") && renderSource.includes("fps=12"), "GIF 512px/12fps 优化契约缺失");
+    assert(
+      renderSource.includes('const captureFormat = format === "gif" ? "mp4" : format') &&
+        renderSource.includes("scale=512:-2") &&
+        renderSource.includes("fps=12"),
+      "GIF MP4中间捕获或512px/12fps优化契约缺失",
+    );
 
     const fakeJpegWithExif = Buffer.concat([
       Buffer.from([0xff, 0xd8, 0xff, 0xe1, 0x00, 0x08]),
@@ -658,6 +667,78 @@ async function main() {
     const projectResult = await verifyProject(projectDir);
     assert(projectResult.ok, `工程闭环校验失败：${projectResult.errors.join("；")}`);
 
+    const cardVariantCases = [
+      ["self-test-birthday-card", "妈妈生日快乐", "card-birthday"],
+      ["self-test-invitation-card", "周末聚餐邀请", "card-invitation"],
+      ["self-test-encouragement-card", "考试加油", "card-encouragement"],
+    ];
+    for (const [projectName, title, expectedClass] of cardVariantCases) {
+      const variantBriefPath = path.join(root, `${projectName}-source.json`);
+      await writeFile(
+        variantBriefPath,
+        `${JSON.stringify(
+          {
+            ...sourceBrief,
+            project_name: projectName,
+            message: { title, subtitle: "保持真实文案", signature: "" },
+          },
+          null,
+          2,
+        )}\n`,
+      );
+      const variantScaffold = runNode("scaffold_project.mjs", [variantBriefPath, root]);
+      assert(
+        variantScaffold.status === 0,
+        `${expectedClass} 脚手架失败：${variantScaffold.stderr || variantScaffold.stdout}`,
+      );
+      const variantHtml = await readFile(path.join(root, projectName, "index.html"), "utf8");
+      assert(
+        variantHtml.includes(expectedClass) && !variantHtml.includes('<div class="hero">'),
+        `${expectedClass} 未命中独立视觉系统，或仍退化为通用矩形 hero`,
+      );
+    }
+
+    const stickerMediaPath = path.join(root, "sticker-source.png");
+    await writeFile(stickerMediaPath, makePng());
+    const stickerBrief = {
+      ...sourceBrief,
+      project_name: "self-test-photo-sticker",
+      function: "sticker",
+      message: { title: "收到", subtitle: "", signature: "" },
+      media: [
+        {
+          path: stickerMediaPath,
+          source_id: "sticker-photo",
+          authorized: true,
+          alt: "表情包测试图",
+        },
+      ],
+      approved_media_roots: [root],
+      use_case: "聊天表情",
+      duration_seconds: 3,
+      output_format: "gif",
+      style: "playful",
+      loop: true,
+    };
+    const stickerBriefPath = path.join(root, "self-test-photo-sticker-source.json");
+    await writeFile(stickerBriefPath, `${JSON.stringify(stickerBrief, null, 2)}\n`);
+    const stickerScaffold = runNode("scaffold_project.mjs", [stickerBriefPath, root]);
+    assert(
+      stickerScaffold.status === 0,
+      `照片表情脚手架失败：${stickerScaffold.stderr || stickerScaffold.stdout}`,
+    );
+    const stickerHtml = await readFile(
+      path.join(root, stickerBrief.project_name, "index.html"),
+      "utf8",
+    );
+    assert(
+      stickerHtml.includes('class="sticker has-media"') &&
+        stickerHtml.includes('<div class="sticker-media">') &&
+        !stickerHtml.includes('<div class="hero">') &&
+        !stickerHtml.includes('<div class="decor">'),
+      "照片表情未采用全屏原图，或仍包含通用卡片/圆环背景",
+    );
+
     const approvalProjectDir = await realpath(projectDir);
     const verifiedRunDir = path.join(
       approvalProjectDir,
@@ -795,7 +876,12 @@ async function main() {
       readFile(path.join(projectDir, "index.html"), "utf8"),
     ]);
     assert(!files[0].includes(root), "delivery brief 泄露授权执行路径");
-    assert(files[1].includes("const settle = 1 - clamp"), "card 基线缺少稳定收束逻辑");
+    assert(
+      files[1].includes("const settle = 1;") &&
+        files[1].includes("card-announcement") &&
+        !files[1].includes('<div class="hero">'),
+      "非循环 card 基线未稳定保留末帧、缺少语义化非对称海报，或仍使用通用矩形 hero",
+    );
     assert(
       !files[1].includes("requestAnimationFrame(") &&
         !files[1].includes("setInterval(") &&
