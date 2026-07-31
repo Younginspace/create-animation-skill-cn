@@ -18,7 +18,7 @@ const DIMS = {
   "16:9": [1920, 1080],
 };
 const THEMES = {
-  warm: { bg: "#F6EBDD", ink: "#36261F", accent: "#E67864", soft: "#F3C7B7" },
+  warm: { bg: "#F6EBDD", ink: "#36261F", accent: "#D45C49", soft: "#F3C7B7" },
   playful: { bg: "#FFF36D", ink: "#171717", accent: "#FF5A7A", soft: "#69D7FF" },
   clean: { bg: "#F4F7FA", ink: "#132238", accent: "#3977F6", soft: "#B9D0FF" },
   energetic: { bg: "#0B1020", ink: "#FFFFFF", accent: "#6CFFB8", soft: "#824CFF" },
@@ -277,13 +277,116 @@ export function sanitizeImage(buffer, extension) {
 }
 
 function mediaMarkup(brief, assets) {
-  if (!assets.length) return `<div class="symbol">${brief.function === "sticker" ? "✓" : "✦"}</div>`;
+  if (!assets.length) return "";
   return assets
     .map(
       (asset, index) =>
         `<img class="media media-${index + 1}" src="${escapeHtml(asset.project_path)}" alt="${escapeHtml(asset.alt)}" />`,
     )
     .join("\n");
+}
+
+function cardVariant(brief) {
+  const text = [
+    brief.message.title,
+    brief.message.subtitle,
+    brief.use_case,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  if (/生日|寿星|周岁|新一岁|birthday/.test(text)) return "birthday";
+  if (/邀请|聚餐|婚礼|婚宴|乔迁|宴会|派对|见面|地点|地址|入席|invite/.test(text)) {
+    return "invitation";
+  }
+  if (/加油|考试|高考|中考|上岸|冲刺|必胜|逢考必过|go for it/.test(text)) {
+    return "encouragement";
+  }
+  return "announcement";
+}
+
+function cardContext(brief, variant) {
+  const text = [brief.message.title, brief.message.subtitle, brief.use_case]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  if (variant === "birthday") {
+    if (/妈妈|母亲|老妈|mom|mother/.test(text)) return "mom";
+    if (/爸爸|父亲|老爸|dad|father/.test(text)) return "dad";
+    if (/宝宝|宝贝|孩子|女儿|儿子|child|kid/.test(text)) return "child";
+  }
+  if (variant === "invitation") {
+    if (/聚餐|家宴|团圆|吃饭|晚餐|午餐|饭局|dinner|lunch/.test(text)) return "dinner";
+    if (/婚礼|婚宴|结婚|wedding/.test(text)) return "wedding";
+    if (/派对|party/.test(text)) return "party";
+  }
+  return "general";
+}
+
+function cardKicker(variant, context) {
+  if (variant === "birthday" && context === "mom") return "WITH LOVE · FOR MOM";
+  if (variant === "birthday" && context === "dad") return "WITH LOVE · FOR DAD";
+  if (variant === "birthday" && context === "child") return "OUR LITTLE STAR";
+  if (variant === "invitation" && context === "dinner") return "FAMILY TABLE";
+  if (variant === "invitation" && context === "wedding") return "SAVE THE DATE";
+  if (variant === "invitation" && context === "party") return "LET'S CELEBRATE";
+  return {
+    birthday: "HAPPY DAY",
+    invitation: "INVITATION",
+    encouragement: "GO FOR IT",
+    announcement: "JUST FOR YOU",
+  }[variant];
+}
+
+function dateToken(brief) {
+  const text = [brief.message.title, brief.message.subtitle].filter(Boolean).join(" ");
+  const match = text.match(/(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
+  if (!match) return "SAVE · THE · DATE";
+  return `${String(match[1]).padStart(2, "0")} · ${String(match[2]).padStart(2, "0")}`;
+}
+
+function cardDecorationMarkup(brief, variant, context) {
+  if (variant === "birthday") {
+    return `
+      <div class="birthday-word" aria-hidden="true" data-layout-allow-occlusion>${context === "mom" ? "MOM" : context === "dad" ? "DAD" : "HBD"}</div>
+      <div class="birthday-confetti" aria-hidden="true">
+        ${Array.from({ length: 16 }, (_, index) => `<i class="confetti confetti-${index + 1} decor-piece"></i>`).join("")}
+      </div>
+      <div class="birthday-cake decor-piece" aria-hidden="true"><i class="cake-icing"></i><i class="cake-shadow"></i></div>
+      <div class="birthday-candles" aria-hidden="true">
+        <i class="candle"><b class="flame"></b></i>
+        <i class="candle"><b class="flame"></b></i>
+        <i class="candle"><b class="flame"></b></i>
+      </div>
+      <div class="birthday-ribbon" aria-hidden="true">LOVE · JOY · HEALTH · ALWAYS</div>`;
+  }
+  if (variant === "invitation") {
+    if (context === "dinner") {
+      return `
+        <div class="dinner-sun" aria-hidden="true"></div>
+        <div class="dinner-plate decor-piece" aria-hidden="true"><i></i><b></b></div>
+        <div class="dinner-chopsticks" aria-hidden="true"><i></i><i></i></div>
+        <div class="dinner-steam" aria-hidden="true"><i></i><i></i><i></i></div>
+        <div class="invite-date">${escapeHtml(dateToken(brief))}</div>
+        <div class="invite-seal decor-piece" aria-hidden="true">聚</div>`;
+    }
+    return `
+      <div class="invite-frame decor-piece" aria-hidden="true"></div>
+      <div class="invite-rail decor-piece" aria-hidden="true"></div>
+      <div class="invite-seal decor-piece" aria-hidden="true">邀</div>`;
+  }
+  if (variant === "encouragement") {
+    return `
+      <div class="speed-lines" aria-hidden="true">
+        ${Array.from({ length: 7 }, (_, index) => `<i class="speed-line speed-line-${index + 1} decor-piece" data-layout-allow-overflow></i>`).join("")}
+      </div>
+      <div class="progress-track" aria-hidden="true"><i class="progress-fill"></i></div>
+      <div class="encourage-mark decor-piece" aria-hidden="true">✓</div>`;
+  }
+  return `
+    <div class="announcement-orbit decor-piece" aria-hidden="true"></div>
+    <div class="announcement-star decor-piece" aria-hidden="true">✦</div>
+    <div class="announcement-block decor-piece" aria-hidden="true"></div>`;
 }
 
 function frameScript(brief, assetCount) {
@@ -306,7 +409,12 @@ const easeInOut = (x) => x < .5 ? 4*x*x*x : 1 - Math.pow(-2*x + 2, 3)/2;
 const title = document.querySelector(".title");
 const subtitle = document.querySelector(".subtitle");
 const signature = document.querySelector(".signature");
-const hero = document.querySelector(".hero");
+const content = document.querySelector(".content");
+const stickerMedia = document.querySelector(".sticker-media");
+const cardMedia = document.querySelector(".card-media");
+const decorations = [...document.querySelectorAll(".decor-piece")];
+const flames = [...document.querySelectorAll(".flame")];
+const progressFill = document.querySelector(".progress-fill");
 const media = [...document.querySelectorAll(".media")];
 const windows = ${JSON.stringify(photoWindows)};
 
@@ -315,16 +423,33 @@ function applyFrame(seconds) {
   const p = current / duration;
   const enter = easeOut(clamp(current / Math.min(1.1, duration * .22)));
   const exit = ${brief.loop ? "1 - easeInOut(clamp((current - duration * .78) / (duration * .22)))" : "1"};
+  const settle = ${brief.loop ? "exit" : "1"};
+  const pulse = Math.sin(p * Math.PI * 2);
   title.style.opacity = String(enter * exit);
-  title.style.transform = \`translateY(\${(1-enter)*70}px) scale(\${.86 + enter*.14})\`;
+  title.style.transform = \`translateY(\${(1-enter)*76}px) scale(\${.84 + enter*.16 + Math.max(0,pulse)*.012*settle})\`;
   subtitle.style.opacity = String(clamp((current - .45) / .65) * exit);
   signature.style.opacity = String(clamp((current - .8) / .7) * exit);
-  if (hero) {
-    const pulse = Math.sin(p * Math.PI * 2);
-    const settle = ${brief.function === "card" ? "1 - clamp((current - (duration - 1.5)) / .4)" : "1"};
-    hero.style.transform = \`translateY(\${(1-enter)*90}px) rotate(\${pulse*2.5*settle}deg) scale(\${.88 + enter*.12 + Math.max(0,pulse)*.025*settle})\`;
-    hero.style.opacity = String(enter * exit);
+  if (content) {
+    content.style.transform = \`translateY(\${(1-enter)*24}px)\`;
   }
+  if (stickerMedia) {
+    stickerMedia.style.opacity = String(enter * exit);
+    stickerMedia.style.transform = \`scale(\${1.015 + Math.max(0,pulse)*.018}) translateY(\${pulse*-5}px)\`;
+  }
+  if (cardMedia) {
+    cardMedia.style.opacity = String(enter);
+    cardMedia.style.transform = \`scale(\${1.06 - enter*.035 + p*.018*settle}) translateY(\${p*-10*settle}px)\`;
+  }
+  decorations.forEach((el, i) => {
+    const phase = p * Math.PI * 2 + i * .71;
+    el.style.opacity = String(clamp((current - .18 - i*.025) / .55) * settle);
+    el.style.transform = \`translateY(\${(1-enter)*(26 + (i%3)*12) + Math.sin(phase)*5*settle}px) rotate(\${Math.sin(phase)*4*settle}deg)\`;
+  });
+  flames.forEach((el, i) => {
+    const flicker = 1 + Math.sin(p * Math.PI * 8 + i) * .12 * settle;
+    el.style.transform = \`translateX(-50%) scaleY(\${flicker}) rotate(\${Math.sin(p*Math.PI*6+i)*4*settle}deg)\`;
+  });
+  if (progressFill) progressFill.style.width = \`\${Math.round(enter * 100)}%\`;
   if (windows.length) {
     media.forEach((el, i) => {
       const w = windows[i];
@@ -359,7 +484,45 @@ window.__timelines["${brief.project_name}"] = {
 function compositionHtml(brief, assets) {
   const [width, height] = DIMS[brief.aspect_ratio];
   const theme = THEMES[brief.style];
-  const imageFit = brief.function === "photo-story" ? "cover" : "cover";
+  const hasMedia = assets.length > 0;
+  const variant = brief.function === "card" ? cardVariant(brief) : null;
+  const context = variant ? cardContext(brief, variant) : null;
+  const stageClasses = [
+    brief.function,
+    hasMedia ? "has-media" : "no-media",
+    variant ? `card-${variant}` : "",
+    variant && context ? `card-${variant}-${context}` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  let sceneMarkup = "";
+  if (brief.function === "photo-story") {
+    sceneMarkup = `
+      ${mediaMarkup(brief, assets)}
+      <div class="content">
+        <div class="title">${escapeHtml(brief.message.title)}</div>
+        <div class="subtitle">${escapeHtml(brief.message.subtitle || "")}</div>
+        <div class="signature">${escapeHtml(brief.message.signature || "")}</div>
+      </div>`;
+  } else if (brief.function === "sticker") {
+    sceneMarkup = `
+      ${hasMedia ? `<div class="sticker-media">${mediaMarkup(brief, assets)}</div>` : '<div class="sticker-accent" aria-hidden="true"></div>'}
+      <div class="content">
+        <div class="title">${escapeHtml(brief.message.title)}</div>
+        <div class="subtitle">${escapeHtml(brief.message.subtitle || "")}</div>
+        <div class="signature">${escapeHtml(brief.message.signature || "")}</div>
+      </div>`;
+  } else {
+    sceneMarkup = `
+      ${hasMedia ? `<div class="card-media">${mediaMarkup(brief, assets)}</div><div class="card-shade" aria-hidden="true"></div>` : ""}
+      ${cardDecorationMarkup(brief, variant, context)}
+      <div class="content">
+        <div class="kicker">${cardKicker(variant, context)}</div>
+        <div class="title">${escapeHtml(brief.message.title)}</div>
+        <div class="subtitle">${escapeHtml(brief.message.subtitle || "")}</div>
+        <div class="signature">${escapeHtml(brief.message.signature || "")}</div>
+      </div>`;
+  }
   return `<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -377,38 +540,121 @@ function compositionHtml(brief, assets) {
     * { box-sizing: border-box; }
     html, body { margin: 0; width: ${width}px; height: ${height}px; overflow: hidden; background: ${theme.bg}; }
     body { font-family: "Yuanbao CJK", sans-serif; }
-    #stage { position: relative; width: ${width}px; height: ${height}px; overflow: hidden; color: ${theme.ink}; background:
-      radial-gradient(circle at 18% 16%, ${theme.soft}88 0 8%, transparent 34%),
-      radial-gradient(circle at 84% 78%, ${theme.accent}66 0 10%, transparent 36%),
-      ${theme.bg}; }
+    #stage { position: relative; width: ${width}px; height: ${height}px; overflow: hidden; color: ${theme.ink}; background: ${theme.bg}; }
     .clip, .scene { position: absolute; inset: 0; }
-    .media { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: ${imageFit}; }
-    .photo-story .media { opacity: 0; }
-    .photo-story::after { content: ""; position: absolute; inset: 0; z-index: 20; background: linear-gradient(180deg,rgba(0,0,0,.08),transparent 42%,rgba(0,0,0,.54)); }
+    .media { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
     .content { position: absolute; z-index: 30; inset: 0; padding: ${brief.aspect_ratio === "9:16" ? "210px 86px 230px" : "90px 72px"}; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
-    .photo-story .content { justify-content: flex-end; color: #fff; text-shadow: 0 3px 24px rgba(0,0,0,.45); }
-    .hero { width: ${brief.aspect_ratio === "9:16" ? "760px" : "620px"}; height: ${brief.aspect_ratio === "9:16" ? "760px" : "620px"}; max-height: 48%; border-radius: 38px; overflow: hidden; box-shadow: 0 28px 80px rgba(0,0,0,.22); margin-bottom: 54px; background: ${theme.soft}; }
-    .hero .media { position: relative; object-fit: cover; }
-    .symbol { display: grid; place-items: center; width: 100%; height: 100%; font-size: 280px; color: ${theme.ink}; }
     .title { max-width: 94%; font-size: ${brief.aspect_ratio === "9:16" ? "104px" : "88px"}; line-height: 1.08; font-weight: 900; letter-spacing: -.03em; text-wrap: balance; }
     .subtitle { max-width: 88%; margin-top: 28px; font-size: ${brief.aspect_ratio === "9:16" ? "44px" : "38px"}; line-height: 1.35; font-weight: 600; }
     .signature { margin-top: 34px; font-size: 32px; opacity: .8; }
+    .kicker { margin-bottom: 28px; font: 800 ${brief.aspect_ratio === "9:16" ? "30px" : "26px"}/1 sans-serif; letter-spacing: .28em; }
+
+    /* 照片故事保持全屏叙事，不与表情/卡片模板混用。 */
+    .photo-story .media { opacity: 0; }
+    .photo-story::after { content: ""; position: absolute; inset: 0; z-index: 20; background: linear-gradient(180deg,rgba(0,0,0,.08),transparent 42%,rgba(0,0,0,.54)); }
+    .photo-story .content { justify-content: flex-end; color: #fff; text-shadow: 0 3px 24px rgba(0,0,0,.45); }
+
+    /* 有照片的表情包：原图就是背景和主体，不再套渐变画布、圆环或卡片。 */
+    .sticker.has-media { background: #101010; }
+    .sticker-media { position: absolute; inset: 0; overflow: hidden; transform-origin: 50% 50%; }
+    .sticker-media .media { object-position: center center; }
+    .sticker.has-media::after { content: ""; position: absolute; inset: 0; z-index: 20; background: linear-gradient(180deg,rgba(0,0,0,.08),transparent 48%,rgba(0,0,0,.5)); }
     .sticker .content { justify-content: center; }
-    .sticker .title { font-size: 118px; color: ${theme.ink}; text-shadow: 0 7px 0 ${theme.bg}; }
-    .decor { position: absolute; z-index: 25; width: 180px; height: 180px; border: 18px solid ${theme.accent}; border-radius: 50%; right: 6%; top: 8%; opacity: .5; }
+    .sticker.has-media .content { justify-content: flex-end; padding-bottom: ${brief.aspect_ratio === "9:16" ? "230px" : "96px"}; color: #fff; }
+    .sticker .title { max-width: 96%; font-size: ${brief.aspect_ratio === "9:16" ? "138px" : "122px"}; line-height: .98; }
+    .sticker.has-media .title { text-shadow: 0 5px 0 rgba(0,0,0,.9), 0 0 24px rgba(0,0,0,.85); }
+    .sticker.no-media { background: ${theme.bg}; }
+    .sticker.no-media .title { color: ${theme.ink}; }
+    .sticker-accent { position: absolute; z-index: 4; left: 14%; right: 14%; top: 58%; height: 22px; border-radius: 999px; background: ${theme.accent}; transform: rotate(-3deg); }
+
+    /* 有照片的卡片：全屏照片 + 信息层，避免“矩形卡套在背景上”。 */
+    .card-media { position: absolute; inset: 0; transform-origin: center; }
+    .card-shade { position: absolute; inset: 0; z-index: 10; background: linear-gradient(180deg,rgba(0,0,0,.08),rgba(0,0,0,.12) 42%,rgba(0,0,0,.74)); }
+    .card.has-media .content { justify-content: flex-end; align-items: flex-start; text-align: left; color: #fff; text-shadow: 0 3px 22px rgba(0,0,0,.45); }
+    .card.has-media .title, .card.has-media .subtitle { max-width: 88%; }
+    .card.has-media .kicker { color: #fff; }
+
+    /* 无图生日：排版、蜡烛和纸屑共同构成场景，不使用通用中心卡片。 */
+    .card-birthday.no-media { background: radial-gradient(circle at 82% 12%, ${theme.soft} 0 8%, transparent 25%), radial-gradient(circle at 15% 88%, ${theme.accent}22 0 12%, transparent 31%), ${theme.bg}; }
+    .card-birthday.no-media::before { content: ""; position: absolute; z-index: 1; width: 74%; height: 74%; right: -24%; top: -34%; border: 120px solid ${theme.soft}; border-radius: 50%; opacity: .72; }
+    .card-birthday.no-media .content { justify-content: flex-start; align-items: flex-start; text-align: left; padding: ${brief.aspect_ratio === "9:16" ? "330px 110px 720px" : "132px 96px 420px"}; }
+    .card-birthday.no-media .title { max-width: ${brief.aspect_ratio === "9:16" ? "86%" : "68%"}; font-size: ${brief.aspect_ratio === "9:16" ? "152px" : "128px"}; line-height: .94; }
+    .card-birthday.no-media .subtitle { max-width: 62%; }
+    .card-birthday .kicker { color: ${theme.accent}; }
+    .birthday-word { position: absolute; z-index: 2; right: -1%; top: ${brief.aspect_ratio === "9:16" ? "30%" : "26%"}; color: ${theme.accent}; font: 950 ${brief.aspect_ratio === "9:16" ? "330px" : "245px"}/.8 sans-serif; letter-spacing: -.1em; writing-mode: vertical-rl; }
+    .birthday-confetti { position: absolute; inset: 0; z-index: 5; }
+    .confetti { position: absolute; width: 18px; height: 58px; border-radius: 9px; background: ${theme.accent}; }
+    .confetti:nth-child(3n) { background: ${theme.soft}; transform: rotate(45deg); }
+    .confetti:nth-child(2n) { width: 28px; height: 28px; border-radius: 50%; background: ${theme.ink}; }
+    .confetti-1{left:5%;top:8%}.confetti-2{left:28%;top:6%}.confetti-3{left:73%;top:10%}.confetti-4{left:91%;top:21%}
+    .confetti-5{left:8%;top:45%}.confetti-6{left:88%;top:43%}.confetti-7{left:16%;top:73%}.confetti-8{left:79%;top:68%}
+    .confetti-9{left:5%;top:89%}.confetti-10{left:94%;top:85%}.confetti-11{left:38%;top:92%}.confetti-12{left:62%;top:88%}
+    .confetti-13{left:49%;top:7%}.confetti-14{left:67%;top:51%}.confetti-15{left:27%;top:58%}.confetti-16{left:87%;top:93%}
+    .birthday-cake { position: absolute; z-index: 10; right: ${brief.aspect_ratio === "9:16" ? "84px" : "76px"}; bottom: ${brief.aspect_ratio === "9:16" ? "280px" : "86px"}; width: ${brief.aspect_ratio === "9:16" ? "720px" : "500px"}; height: ${brief.aspect_ratio === "9:16" ? "330px" : "226px"}; border-radius: 34px 34px 62px 62px; background: linear-gradient(90deg,${theme.accent},#EF8E72 48%,${theme.accent}); box-shadow: 0 28px 0 ${theme.ink}, 0 46px 42px rgba(54,38,31,.18); }
+    .cake-icing { position: absolute; inset: -2px -2px auto; height: 74px; border-radius: 34px 34px 44% 40%; background: #fff; }
+    .cake-icing::before, .cake-icing::after { content: ""; position: absolute; top: 46px; width: 72px; height: 58px; border-radius: 0 0 40px 40px; background: #fff; }
+    .cake-icing::before { left: 18%; } .cake-icing::after { right: 25%; height: 82px; }
+    .cake-shadow { position: absolute; left: 9%; right: 9%; bottom: 44px; height: 14px; border-radius: 99px; background: ${theme.ink}22; }
+    .birthday-candles { position: absolute; z-index: 12; right: ${brief.aspect_ratio === "9:16" ? "270px" : "220px"}; bottom: ${brief.aspect_ratio === "9:16" ? "604px" : "304px"}; display: flex; gap: 42px; }
+    .candle { position: relative; width: 30px; height: 126px; border-radius: 12px; background: repeating-linear-gradient(-45deg,#fff 0 13px,${theme.accent} 13px 26px); box-shadow: 0 12px 24px rgba(0,0,0,.12); }
+    .flame { position: absolute; left: 50%; top: -64px; width: 36px; height: 56px; border-radius: 52% 48% 50% 50% / 62% 62% 38% 38%; background: #FFB020; transform: translateX(-50%); transform-origin: 50% 100%; box-shadow: 0 0 28px #FFB02088; }
+    .birthday-ribbon { position: absolute; z-index: 18; left: ${brief.aspect_ratio === "9:16" ? "110px" : "96px"}; bottom: ${brief.aspect_ratio === "9:16" ? "150px" : "60px"}; color: ${theme.ink}; font: 800 22px/1 sans-serif; letter-spacing: .18em; writing-mode: vertical-rl; }
+
+    /* 邀请：使用票券边界、竖向信息轨和印章语义，内容左对齐。 */
+    .card-invitation.no-media { background: linear-gradient(135deg,${theme.bg} 0 68%,${theme.soft} 68% 100%); }
+    .card-invitation.no-media::before { content: "INVITE"; position: absolute; right: -38px; bottom: 2%; color: ${theme.ink}0D; font: 900 ${brief.aspect_ratio === "9:16" ? "220px" : "180px"}/1 sans-serif; letter-spacing: -.08em; transform: rotate(-90deg) translateX(40%); transform-origin: right bottom; }
+    .card-invitation .content { align-items: flex-start; text-align: left; padding-left: ${brief.aspect_ratio === "9:16" ? "150px" : "130px"}; }
+    .card-invitation .title, .card-invitation .subtitle { max-width: 76%; }
+    .card-invitation .kicker { color: ${theme.accent}; }
+    .invite-frame { position: absolute; z-index: 4; inset: ${brief.aspect_ratio === "9:16" ? "110px 80px" : "64px"}; border: 4px solid ${theme.ink}; border-radius: 42px; }
+    .invite-rail { position: absolute; z-index: 5; left: ${brief.aspect_ratio === "9:16" ? "112px" : "92px"}; top: 20%; bottom: 20%; width: 12px; border-radius: 999px; background: ${theme.accent}; }
+    .invite-seal { position: absolute; z-index: 8; right: 11%; top: 12%; width: 132px; height: 132px; display: grid; place-items: center; border: 5px solid ${theme.accent}; border-radius: 50%; color: ${theme.accent}; font-size: 54px; font-weight: 900; transform: rotate(10deg); }
+
+    /* 家庭聚餐邀请：餐盘、筷子和日期成为主体，不复用票券矩形。 */
+    .card-invitation-dinner.no-media { background: linear-gradient(90deg,${theme.bg} 0 61%,${theme.accent} 61% 100%); }
+    .card-invitation-dinner.no-media::before { content: ""; position: absolute; z-index: 1; left: 0; right: 39%; bottom: 0; height: 34%; background: ${theme.soft}; clip-path: polygon(0 52%,100% 0,100% 100%,0 100%); }
+    .card-invitation-dinner .content { justify-content: flex-start; padding: ${brief.aspect_ratio === "9:16" ? "290px 110px" : "124px 96px"}; }
+    .card-invitation-dinner .title { max-width: 52%; font-size: ${brief.aspect_ratio === "9:16" ? "138px" : "112px"}; line-height: .96; }
+    .card-invitation-dinner .subtitle { max-width: 48%; margin-top: 42px; }
+    .card-invitation-dinner .signature { padding: 13px 24px; color: #fff; background: ${theme.ink}; opacity: 1; }
+    .card-invitation-dinner .invite-seal { right: 6.5%; top: 7%; color: ${theme.ink}; border-color: ${theme.ink}; background: ${theme.bg}; }
+    .dinner-sun { position: absolute; z-index: 2; right: 7%; top: 8%; width: 220px; height: 220px; border-radius: 50%; background: ${theme.soft}; opacity: .45; }
+    .dinner-plate { position: absolute; z-index: 9; right: -4%; bottom: ${brief.aspect_ratio === "9:16" ? "320px" : "76px"}; width: ${brief.aspect_ratio === "9:16" ? "700px" : "510px"}; height: ${brief.aspect_ratio === "9:16" ? "700px" : "510px"}; border: 34px solid ${theme.bg}; border-radius: 50%; background: ${theme.ink}; box-shadow: inset 0 0 0 28px ${theme.bg}, 0 34px 54px rgba(54,38,31,.2); }
+    .dinner-plate > i { position: absolute; inset: 25%; border: 22px solid ${theme.accent}; border-radius: 50%; background: ${theme.bg}; }
+    .dinner-plate > b { position: absolute; width: 28%; height: 28%; left: 36%; top: 36%; border-radius: 50%; background: ${theme.soft}; }
+    .dinner-chopsticks { position: absolute; z-index: 13; right: 4%; bottom: ${brief.aspect_ratio === "9:16" ? "350px" : "100px"}; width: 420px; height: 560px; transform: rotate(16deg); }
+    .dinner-chopsticks i { position: absolute; right: 30px; width: 20px; height: 100%; border-radius: 99px; background: ${theme.bg}; box-shadow: 0 7px 0 ${theme.ink}; }
+    .dinner-chopsticks i + i { right: 78px; }
+    .dinner-steam { position: absolute; z-index: 14; right: 13%; bottom: ${brief.aspect_ratio === "9:16" ? "980px" : "590px"}; display: flex; gap: 42px; }
+    .dinner-steam i { width: 38px; height: 130px; border: 9px solid ${theme.bg}; border-color: transparent transparent transparent ${theme.bg}; border-radius: 50%; transform: rotate(16deg); }
+    .invite-date { position: absolute; z-index: 14; left: ${brief.aspect_ratio === "9:16" ? "110px" : "96px"}; bottom: ${brief.aspect_ratio === "9:16" ? "190px" : "84px"}; color: ${theme.ink}; font: 950 ${brief.aspect_ratio === "9:16" ? "78px" : "66px"}/1 sans-serif; letter-spacing: .08em; }
+
+    /* 加油：斜向速度线、完成标记和进度条，避免生日式装饰。 */
+    .card-encouragement.no-media { color: #fff; background: linear-gradient(145deg,#0B1020 0 62%,${theme.accent} 62% 100%); }
+    .card-encouragement .content { align-items: flex-start; text-align: left; }
+    .card-encouragement .title { max-width: 82%; font-size: ${brief.aspect_ratio === "9:16" ? "150px" : "126px"}; }
+    .card-encouragement .subtitle { max-width: 72%; }
+    .card-encouragement .kicker { color: ${theme.accent}; }
+    .speed-lines { position: absolute; inset: 0; z-index: 5; overflow: hidden; }
+    .speed-line { position: absolute; right: -8%; width: 46%; height: 12px; border-radius: 99px; background: #ffffff88; transform: rotate(-28deg); }
+    .speed-line-1{top:13%}.speed-line-2{top:22%;right:-16%}.speed-line-3{top:31%}.speed-line-4{top:69%}.speed-line-5{top:77%;right:-17%}.speed-line-6{top:85%}.speed-line-7{top:92%;right:-9%}
+    .progress-track { position: absolute; z-index: 22; left: ${brief.aspect_ratio === "9:16" ? "86px" : "72px"}; right: 32%; bottom: ${brief.aspect_ratio === "9:16" ? "230px" : "110px"}; height: 18px; overflow: hidden; border-radius: 99px; background: #ffffff33; }
+    .progress-fill { display: block; width: 0; height: 100%; border-radius: inherit; background: ${theme.accent}; }
+    .encourage-mark { position: absolute; z-index: 8; right: 8%; bottom: 8%; color: #fff; -webkit-text-stroke: 18px #0B1020; paint-order: stroke fill; font: 900 ${brief.aspect_ratio === "9:16" ? "250px" : "190px"}/1 sans-serif; }
+
+    /* 其他祝福/提醒：采用非对称海报构图，保留通用但不套中心矩形。 */
+    .card-announcement.no-media { background: linear-gradient(90deg,${theme.bg} 0 74%,${theme.accent} 74% 100%); }
+    .card-announcement .content { align-items: flex-start; text-align: left; padding-right: 28%; }
+    .card-announcement .kicker { color: ${theme.accent}; }
+    .announcement-orbit { position: absolute; z-index: 5; width: 420px; height: 420px; right: -120px; top: -100px; border: 22px solid ${theme.soft}; border-radius: 50%; }
+    .announcement-star { position: absolute; z-index: 8; right: 5%; top: 39%; color: ${theme.ink}; font-size: 150px; }
+    .announcement-block { position: absolute; z-index: 4; left: 8%; bottom: 8%; width: 190px; height: 38px; border-radius: 99px; background: ${theme.accent}; }
   </style>
 </head>
 <body>
-  <main id="stage" class="${brief.function}" data-composition-id="${brief.project_name}" data-start="0" data-duration="${brief.duration_seconds}" data-fps="30" data-width="${width}" data-height="${height}">
+  <main id="stage" class="${stageClasses}" data-composition-id="${brief.project_name}" data-start="0" data-duration="${brief.duration_seconds}" data-fps="30" data-width="${width}" data-height="${height}">
     <section id="scene-main" class="scene clip" data-start="0" data-duration="${brief.duration_seconds}" data-track-index="0">
-      ${brief.function === "photo-story" ? mediaMarkup(brief, assets) : ""}
-      <div class="decor"></div>
-      <div class="content">
-        ${brief.function !== "photo-story" ? `<div class="hero">${mediaMarkup(brief, assets)}</div>` : ""}
-        <div class="title">${escapeHtml(brief.message.title)}</div>
-        <div class="subtitle">${escapeHtml(brief.message.subtitle || "")}</div>
-        <div class="signature">${escapeHtml(brief.message.signature || "")}</div>
-      </div>
+      ${sceneMarkup}
     </section>
   </main>
   <script>${frameScript(brief, assets.length)}</script>
