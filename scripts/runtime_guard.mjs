@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { constants, readdirSync } from "node:fs";
 import {
   access,
+  chmod,
   cp,
   lstat,
   mkdir,
@@ -17,6 +18,7 @@ import { fileURLToPath } from "node:url";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 export const BROWSER_GUARD_PATH = path.join(scriptDir, "chrome-headless-shell");
+const RUNTIME_CLEANUP = Symbol("create-animation-runtime-cleanup");
 const CONTRACT_FILES = [
   "BRIEF.md",
   "delivery-brief.json",
@@ -109,19 +111,88 @@ export async function resolveRealBrowserPath() {
   );
 }
 
+async function materializeBrowserGuard() {
+  const sourceHandle = await open(
+    BROWSER_GUARD_PATH,
+    constants.O_RDONLY | (constants.O_NOFOLLOW || 0),
+  );
+  let source;
+  try {
+    const before = await sourceHandle.stat();
+    if (!before.isFile() || before.size <= 0 || before.size > 64 * 1024) {
+      throw new Error("浏览器离线守卫必须是64KB以内的非空普通文件");
+    }
+    source = Buffer.alloc(before.size + 1);
+    const read = await sourceHandle.read(source, 0, source.length, 0);
+    const after = await sourceHandle.stat();
+    if (
+      read.bytesRead !== before.size ||
+      after.size !== before.size ||
+      after.mtimeMs !== before.mtimeMs ||
+      after.ctimeMs !== before.ctimeMs
+    ) {
+      throw new Error("浏览器离线守卫在读取期间发生变化");
+    }
+    source = source.subarray(0, read.bytesRead);
+  } finally {
+    await sourceHandle.close();
+  }
+
+  const workspace = await mkdtemp(path.join(os.tmpdir(), "create-animation-browser-guard-"));
+  const guardPath = path.join(workspace, "chrome-headless-shell");
+  let outputHandle = null;
+  try {
+    outputHandle = await open(
+      guardPath,
+      constants.O_WRONLY |
+        constants.O_CREAT |
+        constants.O_EXCL |
+        (constants.O_NOFOLLOW || 0),
+      0o700,
+    );
+    await outputHandle.writeFile(source);
+    await outputHandle.sync();
+    await outputHandle.close();
+    outputHandle = null;
+    // GitHub web-created files are commonly cloned as 0644. The installed
+    // Skill can remain read-only; only this private disposable copy executes.
+    await chmod(guardPath, 0o700);
+    return {
+      guardPath,
+      async cleanup() {
+        await rm(workspace, { recursive: true, force: true });
+      },
+    };
+  } catch (error) {
+    await outputHandle?.close().catch(() => {});
+    await rm(workspace, { recursive: true, force: true }).catch(() => {});
+    throw error;
+  }
+}
+
 export async function guardedRuntimeEnv() {
   const realBrowser = await resolveRealBrowserPath();
-  await access(BROWSER_GUARD_PATH, constants.X_OK);
-  return {
+  const materialized = await materializeBrowserGuard();
+  const env = {
     ...NO_TRACKING_ENV,
     HYPERFRAMES_REAL_BROWSER_PATH: realBrowser,
-    HYPERFRAMES_BROWSER_PATH: BROWSER_GUARD_PATH,
-    PRODUCER_HEADLESS_SHELL_PATH: BROWSER_GUARD_PATH,
+    HYPERFRAMES_BROWSER_PATH: materialized.guardPath,
+    PRODUCER_HEADLESS_SHELL_PATH: materialized.guardPath,
     HTTP_PROXY: "http://127.0.0.1:9",
     HTTPS_PROXY: "http://127.0.0.1:9",
     ALL_PROXY: "http://127.0.0.1:9",
     NO_PROXY: "localhost,127.0.0.1,::1",
   };
+  Object.defineProperty(env, RUNTIME_CLEANUP, {
+    enumerable: false,
+    value: materialized.cleanup,
+  });
+  return env;
+}
+
+export async function cleanupGuardedRuntimeEnv(env) {
+  const cleanup = env?.[RUNTIME_CLEANUP];
+  if (typeof cleanup === "function") await cleanup();
 }
 
 async function boundedDigestFile(root, relativePath, hash, budget) {
