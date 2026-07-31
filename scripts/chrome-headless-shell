@@ -1,0 +1,22 @@
+#!/bin/sh
+set -eu
+
+real_browser=${HYPERFRAMES_REAL_BROWSER_PATH:-}
+if [ -z "$real_browser" ] || [ ! -f "$real_browser" ] || [ ! -x "$real_browser" ]; then
+  echo "create-animation: HYPERFRAMES_REAL_BROWSER_PATH must point to an executable browser" >&2
+  exit 126
+fi
+
+exec "$real_browser" \
+  '--proxy-server=http://127.0.0.1:9' \
+  '--proxy-bypass-list=localhost;127.0.0.1;[::1]' \
+  '--host-resolver-rules=EXCLUDE localhost, EXCLUDE 127.0.0.1, EXCLUDE ::1, MAP * ~NOTFOUND' \
+  '--disable-quic' \
+  '--disable-background-networking' \
+  '--disable-component-update' \
+  '--disable-domain-reliability' \
+  '--disable-sync' \
+  '--metrics-recording-only' \
+  '--no-first-run' \
+  '--force-webrtc-ip-handling-policy=disable_non_proxied_udp' \
+  "$@"
