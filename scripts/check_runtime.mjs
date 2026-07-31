@@ -41,7 +41,7 @@ const realBrowserPath = await resolveRealBrowserPath().catch(() => null);
 const browser = realBrowserPath
   ? { name: realBrowserPath, ...command(realBrowserPath) }
   : { name: null, available: false, version: null };
-const browserGuardAvailable = await access(BROWSER_GUARD_PATH, constants.X_OK)
+const browserGuardAvailable = await access(BROWSER_GUARD_PATH, constants.R_OK)
   .then(() => true)
   .catch(() => false);
 const overridePath = process.env.HYPERFRAMES_CLI || null;
@@ -69,6 +69,7 @@ const report = {
   browser_guard: {
     available: browserGuardAvailable,
     path: BROWSER_GUARD_PATH,
+    private_executable_copy_created_per_run: browserGuardAvailable,
     pins_hyperframes_browser_path: browserGuardAvailable && browser.available,
   },
   hyperframes_cli: installedCli,
@@ -107,7 +108,7 @@ if (!selectedCli?.available) {
 if (!report.ffmpeg.available) report.missing.push("ffmpeg");
 if (!report.ffprobe.available) report.missing.push("ffprobe");
 if (!browser.available) report.missing.push("Chrome/Chromium");
-if (!browserGuardAvailable) report.missing.push("可执行的本地浏览器离线守卫");
+if (!browserGuardAvailable) report.missing.push("可读取的本地浏览器离线守卫");
 if (!report.chinese_font.available) report.missing.push("已授权中文字体");
 
 console.log(JSON.stringify(report, null, 2));
