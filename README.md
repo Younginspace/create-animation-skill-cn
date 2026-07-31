@@ -10,15 +10,17 @@
 
 ## 当前状态
 
-`v0.1.0` 是优化前的公开基线，用于建立可追溯版本：
+`v0.2.0` 已完成第一轮面向中文 C 端场景的视觉与运行时改造：
 
-- 工程、素材、预览批准与最终媒体都有本地校验；
+- 照片表情默认使用全屏原图，不再叠加冗余装饰背景；
+- 无图生日、家庭聚餐邀请、考试加油与一般提醒拥有不同视觉系统；
+- GIF 是可直接保存的真实文件，固定优化为 512px、12fps、128 色；
+- 工程、素材、关键帧人工批准与最终媒体都有本地校验；
 - 不在任务运行时自动联网安装依赖；
-- 支持真实 GIF/MP4 交付验证；
-- 已知视觉问题：无图卡片的基础脚手架过于同质化，照片表情默认装饰背景偏重；
+- GitHub/ZIP 安装导致脚本失去可执行位时，浏览器守卫会自动生成私有可执行副本；
 - 透明背景 GIF 尚未作为已验证能力开放。
 
-后续版本会把表情背景策略、场景化卡片模板和视觉验收门槛作为重点改造项。
+已用五个典型案例完成“工程检查 → 关键帧人审 → GIF/MP4 渲染 → ffprobe 验证”的闭环。脚手架仍是可修改的设计起点；`SKILL.md` 要求交付前按真实文案和素材进行视觉判断。
 
 ## 安装
 
@@ -43,6 +45,8 @@ git clone --depth 1 https://github.com/Younginspace/create-animation-skill-cn.gi
 - Chrome 或 Chromium
 - FFmpeg 与 ffprobe
 - 有明确授权的本地中文字体
+
+GIF 会先由 HyperFrames 捕获为本地 MP4 中间产物，再由 FFmpeg 转为受控 GIF；这避免把上游 0.7.83 的高细节调色板编码故障暴露给普通用户。
 
 运行时不会用 `npx`、`pnpm dlx` 或 `bunx` 自动下载缺失依赖。国内部署与离线策略见 [`references/runtime-and-china.md`](references/runtime-and-china.md)。
 
@@ -91,4 +95,3 @@ node scripts/verify_delivery.mjs \
 ## 来源与许可证
 
 本项目以 Apache License 2.0 发布。渲染接口兼容性与工作流参考了 Apache-2.0 许可的 [HyperFrames](https://github.com/heygen-com/hyperframes)，详细版本和改造边界见 [`references/source-attribution.md`](references/source-attribution.md) 与 [`NOTICE`](NOTICE)。
-
