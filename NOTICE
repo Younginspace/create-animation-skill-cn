@@ -1,0 +1,22 @@
+create-animation-skill-cn
+Copyright 2026 Younginspace
+
+This project implements an independently written Chinese consumer animation
+workflow and interoperates with HyperFrames.
+
+The composition contract, deterministic seeking requirements, snapshot-before-
+render workflow, and related compatibility behavior were informed by:
+
+  HyperFrames
+  Copyright 2026 HeyGen, Inc.
+  https://github.com/heygen-com/hyperframes
+  Version reviewed: 0.7.83
+  License: Apache License 2.0
+
+The detailed boundary between upstream ideas and independently written material
+is documented in references/source-attribution.md.
+
+HyperFrames and HeyGen are trademarks of their respective owners. Their names
+are used only to identify compatibility and source attribution. This project is
+not endorsed by or affiliated with HeyGen.
+
