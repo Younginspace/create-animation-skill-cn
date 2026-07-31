@@ -1,0 +1,19 @@
+.DS_Store
+.env
+.env.*
+!.env.example
+node_modules/
+
+# User inputs may contain private local paths.
+source-brief.json
+source-brief-*.json
+brief.input.json
+
+# Generated projects and media.
+runs/
+test-runs/
+snapshots/
+renders/
+*.mp4
+*.gif
+
