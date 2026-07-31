@@ -54,7 +54,10 @@ node scripts/scaffold_project.mjs <source-brief.json> <工程父目录>
    - 第二个参数必须是父目录；脚手架会在其下新建 `<project_name>/`，不要再把 `project_name` 拼进参数。
    - 脚手架只复制校验时同一只安全文件句柄实际读到的字节，不会在校验后按原路径二次读取；随后把 PNG 收窄到像素解码、调色板和透明度必需的 chunk，JPEG 丢弃全部自由 APP/COM 元数据，只重建最小方向标记和规范化 Adobe 色彩转换段。清洗后的 JPEG 会再次真实解码。最后记录 SHA-256，并生成脱敏 `delivery-brief.json`、计划、manifest 和带离线 CSP、可寻帧的根目录 `index.html`。
    - 它只创建此前不存在的新工程目录；即使同名目录为空也拒绝写入，以避免符号链接与目录替换。不把新任务合并进旧素材。
-   - 脚本只生成可用基线。需要个性化时，在保持 [hyperframes-contract.md](references/hyperframes-contract.md) 约束的前提下修改 composition。
+   - 脚本只生成按语义分流的可用基线，不代表视觉终稿。在保持 [hyperframes-contract.md](references/hyperframes-contract.md) 约束的前提下修改 composition：
+     - 有照片的 `sticker` 默认让原图铺满，不额外增加渐变背景、装饰圆环或卡片容器；裁切伤害主体时才使用必要补边。
+     - 无图 `card` 必须按生日、邀请、考试加油或官宣提醒选择不同视觉系统，并根据真实文案长度完成一次个性化调整；不得从脚手架直接进入渲染。
+     - 有图 `card` 默认使用全屏照片与信息层，不把照片缩进通用圆角矩形。
    - 修改已有工程时，不重跑脚手架：先用 `node scripts/verify_project.mjs <工程目录>` 验证，再读取 `delivery-brief.json` 和计划后修改 `index.html`；如需换素材，用新 `project_name` 重新生成工程，保留旧版。
 
 5. **检查运行环境**
@@ -74,7 +77,8 @@ node scripts/check_runtime.mjs
    - 从本 Skill 目录先运行 `node scripts/check_project.mjs <工程目录>`。该入口会先验证离线工程闭环，再调用固定版本的 HyperFrames 做快照检查。
    - 检查入口会先把已验证工程冻结到私有临时目录执行，再把本次快照写回 `snapshots/verified-<时间戳>/`；`photo-story` 会从 `animation-plan.json` 推导每次换图前/中/后三个时间点，并生成其中的 `transitions/`，必须逐张查看。
    - 人工查看至少首帧、主动作峰值、结束帧；`photo-story` 还要检查每次换图。检查入口会输出本次 `snapshots/verified-<时间戳>/` 的准确路径。
-   - 发现文字截断、人物被遮、闪白、素材变形或结束帧不能自然循环时，修改后重新检查。
+   - 同时做视觉判断：表情背景是否必要、主体是否被安全裁切、卡片构图是否符合场景、同批卡片是否只有换色差异、装饰是否压过信息。技术检查通过不等于视觉通过。
+   - 发现文字截断、人物被遮、闪白、素材变形、无关背景、场景错配、同质化构图或结束帧不能自然循环时，修改后重新检查。
    - 快照人工确认无误后，从本 Skill 目录运行 `node scripts/approve_preview.mjs <工程目录> <snapshots/verified-时间戳目录>`。该命令把人工批准绑定到当前工程 SHA-256 和本次快照证据 SHA-256；工程或快照改变后旧批准自动失效。
    - 只有检查通过且存在与当前工程一致的人工批准后才渲染；`render_project.mjs` 会强制读取该批准，不能直接绕过。生产执行不允许临时 `dlx`/`npx` 下载；检查和渲染入口会关闭 HyperFrames telemetry、以 0.7.83 实际支持的参数跳过后台联网检查，并把两项浏览器路径同时固定到只放行 loopback 的离线守卫。渲染同样只执行私有冻结副本，源工程变化时拒绝回写。
    - 从本 Skill 目录运行 `node scripts/render_project.mjs <工程目录> [draft|high]`，让 `brief.output_format` 决定 MP4 或循环 GIF。
@@ -103,6 +107,9 @@ node scripts/check_runtime.mjs
 - 是否明确用途、比例、时长和主输出格式？
 - 文字在手机尺寸下是否一眼可读，且没有贴边或截断？
 - 动效是否由内容驱动，而不是堆叠无关特效？
+- 有照片的表情是否优先使用原图主体，所有新增背景是否确有必要？
+- 无图卡片是否匹配生日、邀请、考试加油或官宣提醒的场景，而非只换颜色？
+- 同一批不同场景的作品是否具有明显不同的信息层级与构图？
 - 每一帧是否可由时间值确定，且没有网络运行时依赖？
 - 人像主体是否完整、图片是否未拉伸、切换是否无闪白？
 - 循环产物首尾是否自然，非循环产物是否有稳定结束帧？
