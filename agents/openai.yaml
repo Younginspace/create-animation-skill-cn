@@ -1,0 +1,4 @@
+interface:
+  display_name: "制作动画"
+  short_description: "用真实照片和短文案制作动态表情、祝福卡和照片故事短片"
+  default_prompt: "使用 $create-animation 把我提供的真实照片和文字制作成适合聊天分享的短动画。"
