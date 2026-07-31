@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { snapshotEvidenceDigest } from "./approve_preview.mjs";
 import { resolveRunner } from "./render_project.mjs";
 import {
+  cleanupGuardedRuntimeEnv,
   freezeProject,
   guardedRuntimeEnv,
   projectContractDigest,
@@ -34,6 +35,7 @@ async function plannedTransitionTimes(projectDir) {
 export async function main(argv = process.argv.slice(2)) {
   const projectDir = path.resolve(argv[0] || ".");
   let frozen = null;
+  let runtimeEnv = null;
   try {
     const projectCheck = await verifyProject(projectDir);
     if (!projectCheck.ok) {
@@ -42,7 +44,7 @@ export async function main(argv = process.argv.slice(2)) {
     frozen = await freezeProject(projectDir, verifyProject);
     const executionProject = frozen.frozenRoot;
     const runner = resolveRunner();
-    const runtimeEnv = await guardedRuntimeEnv();
+    runtimeEnv = await guardedRuntimeEnv();
     const transitionTimes = await plannedTransitionTimes(executionProject);
     // v0.7.83 的 root CLI 只有在 argv 含 --json 时才完全跳过两个后台
     // update/skills-manifest fetch；因此即使输出主要供人阅读也必须保留该参数。
@@ -163,6 +165,7 @@ export async function main(argv = process.argv.slice(2)) {
     console.error(`检查失败：${error.message}`);
     return 1;
   } finally {
+    await cleanupGuardedRuntimeEnv(runtimeEnv).catch(() => {});
     await frozen?.cleanup().catch(() => {});
   }
 }
