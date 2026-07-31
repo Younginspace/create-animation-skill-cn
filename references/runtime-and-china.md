@@ -48,11 +48,11 @@ node <SKILL_DIR>/scripts/verify_delivery.mjs renders/final.<mp4|gif> delivery-br
 
 `check_project.mjs` 与 `render_project.mjs` 都会先运行工程闭环验证，再把工程复制到权限收窄的私有临时目录并复验，只对该冻结副本调用精确版本的预装 CLI。二者给 0.7.83 根命令保留 `--json`；这是该版本真正跳过 npm 版本查询与远程 Skill 清单查询的必要条件，不只是输出格式偏好。检查入口还会传入 `--at-transitions`；照片故事会从计划中推导每次换图前/中/后三个明确时间点，并把本次结果保存到 `snapshots/verified-<时间戳>/transitions/`。人工查看后必须显式运行 `approve_preview.mjs`；批准同时绑定当前工程契约 SHA-256 和快照证据 SHA-256，任何后续修改都会让渲染入口拒绝旧批准。
 
-`render_project.mjs` 会在私有运行目录生成并验证临时产物；只有 CLI 成功退出、成品通过 delivery brief + ffprobe 验证、源工程未变化且 `renders/` 身份未被替换时，才以排他临时句柄复制并原子替换 `renders/final.<格式>`。GIF 会在本地用 FFmpeg 进一步压到 512px 宽、12fps、128色调色板并清除容器元数据；失败会清理私有运行目录并保留旧的 final。
+`render_project.mjs` 会在私有运行目录生成并验证临时产物；只有 CLI 成功退出、成品通过 delivery brief + ffprobe 验证、源工程未变化且 `renders/` 身份未被替换时，才以排他临时句柄复制并原子替换 `renders/final.<格式>`。GIF 不直接走 0.7.83 的 GIF 调色板编码：先由 HyperFrames 生成本地 MP4 中间产物，再由 FFmpeg 压到 512px 宽、12fps、128色调色板并清除容器元数据。这规避了高细节图片在上游 GIF 编码阶段可复现的内部错误；任一步失败都会清理私有运行目录并保留旧的 final。
 
 如使用 `HYPERFRAMES_CLI`，它必须指向可直接执行且能通过 `--version --json` 检查的 0.7.83 CLI 文件；不要指向需由 `node` 间接启动的源码入口。环境检查、版本检查、快照检查和渲染子进程都会设置 `HYPERFRAMES_NO_TELEMETRY=1`、`HYPERFRAMES_NO_UPDATE_CHECK=1`、`HYPERFRAMES_NO_AUTO_INSTALL=1` 与 `DO_NOT_TRACK=1`；其中 CLI 的后台更新请求另由上述 `--json` 参数可靠跳过。
 
-运行入口会把 `HYPERFRAMES_BROWSER_PATH` 和 `PRODUCER_HEADLESS_SHELL_PATH` 同时指向本 Skill 的浏览器守卫，由守卫调用已预装的真实 Chrome/Chromium：浏览器只放行 `localhost`、`127.0.0.1` 与 `::1`，外部代理端口固定为不可达地址，并禁用 QUIC、后台联网、组件更新与非代理 WebRTC。composition 还必须携带 `connect-src 'none'` 的精确 CSP，工程验证会拒绝网络 API、动态执行和页面跳转入口。以上是应用层防线；生产环境仍必须用容器/OS egress policy 作为整个 Node/FFmpeg 进程的最终网络边界，不能把浏览器参数描述成系统级防火墙。
+运行入口会把 `HYPERFRAMES_BROWSER_PATH` 和 `PRODUCER_HEADLESS_SHELL_PATH` 同时指向本 Skill 的浏览器守卫，由守卫调用已预装的真实 Chrome/Chromium。若 ZIP 下载或 GitHub 网页编辑让守卫文件失去可执行位，入口会读取已验证的守卫源码，在权限0700的私有临时目录生成权限0700的可执行副本，任务结束后删除；不要求用户手工 `chmod`。浏览器只放行 `localhost`、`127.0.0.1` 与 `::1`，外部代理端口固定为不可达地址，并禁用 QUIC、后台联网、组件更新与非代理 WebRTC。composition 还必须携带 `connect-src 'none'` 的精确 CSP，工程验证会拒绝网络 API、动态执行和页面跳转入口。以上是应用层防线；生产环境仍必须用容器/OS egress policy 作为整个 Node/FFmpeg 进程的最终网络边界，不能把浏览器参数描述成系统级防火墙。
 
 ## 国内生产建议
 
