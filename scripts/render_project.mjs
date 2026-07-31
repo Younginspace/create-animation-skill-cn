@@ -6,6 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { requirePreviewApproval } from "./approve_preview.mjs";
 import {
+  cleanupGuardedRuntimeEnv,
   freezeProject,
   guardedRuntimeEnv,
   NO_TRACKING_ENV,
@@ -142,6 +143,7 @@ export async function main() {
     process.exit(2);
   }
   let frozen = null;
+  let runtimeEnv = null;
   try {
     const projectCheck = await verifyProject(projectDir);
     if (!projectCheck.ok) {
@@ -165,26 +167,29 @@ export async function main() {
       frozen.workspace,
       `.final.${process.pid}.${Date.now()}.tmp.${format}`,
     );
+    // HyperFrames 0.7.83 can intermittently fail while palette-encoding
+    // high-detail image sequences to GIF. Capture a deterministic MP4 first,
+    // then perform the existing bounded 512px/12fps GIF conversion locally.
+    const captureFormat = format === "gif" ? "mp4" : format;
     const captureOutput =
       format === "gif"
-        ? path.join(frozen.workspace, `.capture.${process.pid}.${Date.now()}.tmp.gif`)
+        ? path.join(frozen.workspace, `.capture.${process.pid}.${Date.now()}.tmp.mp4`)
         : temporaryOutput;
     const runner = resolveRunner();
-    const runtimeEnv = await guardedRuntimeEnv();
+    runtimeEnv = await guardedRuntimeEnv();
     const args = [
       "render",
       executionProject,
       "--quality",
       quality,
       "--format",
-      format,
+      captureFormat,
       "--output",
       captureOutput,
       "--strict",
       "--no-best-effort",
       "--json",
     ];
-    if (format === "gif") args.push("--fps", "12", "--gif-loop", brief.loop ? "0" : "1");
     const result = spawnSync(runner, args, {
       stdio: "inherit",
       env: runtimeEnv,
@@ -271,6 +276,7 @@ export async function main() {
     console.error(`渲染失败：${error.message}`);
     process.exitCode = 1;
   } finally {
+    await cleanupGuardedRuntimeEnv(runtimeEnv).catch(() => {});
     await frozen?.cleanup().catch(() => {});
   }
 }
