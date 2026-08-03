@@ -423,6 +423,120 @@ function verifyNoNetworkOrDynamicApis(html, errors) {
   }
 }
 
+function validateCreativePlan(creative, brief, html, errors, creativeEngineVersion = null) {
+  if (!creative || typeof creative !== "object" || Array.isArray(creative)) {
+    errors.push("creative-plan.json 根节点必须是对象");
+    return;
+  }
+  if (creative.version !== 1) errors.push("creative-plan.json.version 必须严格为 1");
+  if (creative.source !== "create-animation-cn-creative") {
+    errors.push('creative-plan.json.source 必须严格为 "create-animation-cn-creative"');
+  }
+  if (creative.function !== brief.function) {
+    errors.push("creative-plan.json.function 必须与 delivery-brief.json.function 一致");
+  }
+  if (!/^[a-z0-9][a-z0-9-]{2,63}$/.test(String(creative.route || ""))) {
+    errors.push("creative-plan.json.route 必须是3—64位英文小写、数字或短横线");
+  }
+  const content = creative.content;
+  if (!content || typeof content !== "object" || Array.isArray(content)) {
+    errors.push("creative-plan.json.content 必须是对象");
+  } else {
+    for (const [field, expected] of [
+      ["source_title", brief.message?.title || ""],
+      ["source_subtitle", brief.message?.subtitle || ""],
+      ["source_signature", brief.message?.signature || ""],
+    ]) {
+      if (content[field] !== expected) {
+        errors.push(`creative-plan.json.content.${field} 必须逐字对应 delivery brief`);
+      }
+    }
+    if (
+      ["sticker", "card"].includes(brief.function) &&
+      Array.isArray(brief.media) &&
+      brief.media.length === 0 &&
+      creative.creative_director?.decision?.copy_policy === "source-only"
+    ) {
+      const source = String(brief.message?.title || "").replace(/[，,、：:；;。！？!?\s]+/g, "");
+      const authored = `${content.eyebrow || ""}${content.hero || ""}`.replace(
+        /[，,、：:；;。！？!?\s]+/g,
+        "",
+      );
+      if (!source || authored !== source) {
+        errors.push("纯文字作品的 eyebrow + hero 必须只重排原始标题，不得增删文本");
+      }
+    }
+  }
+  const palette = creative.palette;
+  if (!palette || typeof palette !== "object" || Array.isArray(palette)) {
+    errors.push("creative-plan.json.palette 必须是对象");
+  } else {
+    for (const key of ["background", "foreground", "accent", "secondary", "muted"]) {
+      if (!/^#[0-9a-f]{6}$/i.test(String(palette[key] || ""))) {
+        errors.push(`creative-plan.json.palette.${key} 必须是六位十六进制颜色`);
+      }
+    }
+  }
+  const textOnly =
+    Array.isArray(brief.media) &&
+    brief.media.length === 0 &&
+    (brief.function === "sticker" || brief.function === "card");
+  if (!Array.isArray(creative.layers) || creative.layers.length < (textOnly ? 3 : 2)) {
+    errors.push(`creative-plan.json.layers 至少需要 ${textOnly ? 3 : 2} 个有职责的空间层`);
+  }
+  if (!Array.isArray(creative.focal_points) || creative.focal_points.length < (textOnly ? 2 : 1)) {
+    errors.push(`creative-plan.json.focal_points 至少需要 ${textOnly ? 2 : 1} 个视觉焦点`);
+  }
+  if (!Array.isArray(creative.motion_beats) || creative.motion_beats.length < 3) {
+    errors.push("creative-plan.json.motion_beats 必须覆盖 build、breathe、resolve 三个阶段");
+  } else {
+    const phases = new Set(creative.motion_beats.map((item) => item?.phase));
+    for (const phase of ["build", "breathe", "resolve"]) {
+      if (!phases.has(phase)) errors.push(`creative-plan.json.motion_beats 缺少 ${phase}`);
+    }
+  }
+  if (!Array.isArray(creative.guardrails) || creative.guardrails.length < 3) {
+    errors.push("creative-plan.json.guardrails 至少需要3项事实、媒介或离线边界");
+  }
+  if (creativeEngineVersion === 2) {
+    const director = creative.creative_director;
+    const decision = director?.decision;
+    if (director?.engine !== "cn-context-router-v2" || director?.auto_applied !== true) {
+      errors.push("Creative v2 工程必须记录 cn-context-router-v2 已自动应用");
+    }
+    if (!Array.isArray(director?.signals) || director.signals.length < 3) {
+      errors.push("Creative v2 必须记录至少3个路由信号");
+    }
+    for (const key of ["audience", "tone", "composition_mode", "visual_metaphor"]) {
+      if (typeof decision?.[key] !== "string" || !decision[key].trim()) {
+        errors.push(`Creative v2 decision.${key} 必须是非空文字`);
+      }
+    }
+    if (decision?.copy_policy !== "source-only") {
+      errors.push('Creative v2 decision.copy_policy 必须为 "source-only"');
+    }
+    if (
+      !Number.isInteger(decision?.decorative_budget) ||
+      decision.decorative_budget < 0 ||
+      decision.decorative_budget > 12
+    ) {
+      errors.push("Creative v2 decision.decorative_budget 必须是0—12的整数");
+    }
+    if (!Array.isArray(creative.motion_roles) || creative.motion_roles.length < 3) {
+      errors.push("Creative v2 至少需要3个有职责的 motion_roles");
+    }
+    const actualEngine = htmlAttributeValue(html, "data-creative-engine");
+    if (actualEngine !== "cn-context-router-v2") {
+      errors.push("index.html 缺少或错配 data-creative-engine=cn-context-router-v2");
+    }
+  }
+  const actualRoute = htmlAttributeValue(html, "data-creative-route");
+  if (actualRoute == null) errors.push("index.html 缺少 data-creative-route");
+  else if (actualRoute !== creative.route) {
+    errors.push("index.html 的 data-creative-route 与 creative-plan.json.route 不一致");
+  }
+}
+
 export async function verifyProject(projectDir) {
   const errors = [];
   let root;
@@ -462,11 +576,17 @@ export async function verifyProject(projectDir) {
   }
   if (errors.length) return { ok: false, errors };
 
-  const [brief, hyperframes, plan, manifest, html] = await Promise.all([
+  const hasCreativePlan = projectFiles.some(
+    (item) => item.path === "creative-plan.json" && item.file && !item.symlink,
+  );
+  const [brief, hyperframes, plan, manifest, creative, html] = await Promise.all([
     parseJson(path.join(root, "delivery-brief.json"), "delivery-brief.json", errors),
     parseJson(path.join(root, "hyperframes.json"), "hyperframes.json", errors),
     parseJson(path.join(root, "animation-plan.json"), "animation-plan.json", errors),
     parseJson(path.join(root, "asset-manifest.json"), "asset-manifest.json", errors),
+    hasCreativePlan
+      ? parseJson(path.join(root, "creative-plan.json"), "creative-plan.json", errors)
+      : Promise.resolve(null),
     readTextFile(path.join(root, "index.html"), MAX_HTML_BYTES, "index.html", errors),
   ]);
   if (!brief || !hyperframes || !plan || !manifest || html == null) return { ok: false, errors };
@@ -480,6 +600,7 @@ export async function verifyProject(projectDir) {
     ["hyperframes.json", hyperframes],
     ["animation-plan.json", plan],
     ["asset-manifest.json", manifest],
+    ...(creative ? [["creative-plan.json", creative]] : []),
   ]) {
     try {
       walkStrings(object, (value, location) => {
@@ -544,6 +665,21 @@ export async function verifyProject(projectDir) {
   }
   if (hyperframes.source_skill !== "create-animation") {
     errors.push('hyperframes.json.source_skill 必须严格为 "create-animation"');
+  }
+  if (hyperframes.creative_contract_version != null && hyperframes.creative_contract_version !== 1) {
+    errors.push("hyperframes.json.creative_contract_version 只支持 1");
+  }
+  if (hyperframes.creative_contract_version === 1 && !creative) {
+    errors.push("声明 creative_contract_version: 1 的工程必须包含 creative-plan.json");
+  }
+  if (
+    hyperframes.creative_engine_version != null &&
+    hyperframes.creative_engine_version !== 2
+  ) {
+    errors.push("hyperframes.json.creative_engine_version 只支持 2");
+  }
+  if (creative) {
+    validateCreativePlan(creative, brief, html, errors, hyperframes.creative_engine_version);
   }
   if (hyperframes.fps !== 30 || plan.fps !== 30) {
     errors.push("hyperframes.json.fps 与 animation-plan.json.fps 必须严格为 30");

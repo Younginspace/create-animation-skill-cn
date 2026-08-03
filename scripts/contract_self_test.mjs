@@ -668,11 +668,26 @@ async function main() {
     assert(projectResult.ok, `工程闭环校验失败：${projectResult.errors.join("；")}`);
 
     const cardVariantCases = [
-      ["self-test-birthday-card", "妈妈生日快乐", "card-birthday"],
-      ["self-test-invitation-card", "周末聚餐邀请", "card-invitation"],
-      ["self-test-encouragement-card", "考试加油", "card-encouragement"],
+      [
+        "self-test-birthday-card",
+        "妈妈生日快乐",
+        "card-birthday",
+        "card-birthday-parent-warm-ceremonial",
+      ],
+      [
+        "self-test-invitation-card",
+        "周末聚餐邀请",
+        "card-invitation",
+        "card-invitation-dinner",
+      ],
+      [
+        "self-test-encouragement-card",
+        "考试加油",
+        "card-encouragement",
+        "card-encouragement",
+      ],
     ];
-    for (const [projectName, title, expectedClass] of cardVariantCases) {
+    for (const [projectName, title, expectedClass, expectedRoute] of cardVariantCases) {
       const variantBriefPath = path.join(root, `${projectName}-source.json`);
       await writeFile(
         variantBriefPath,
@@ -692,10 +707,39 @@ async function main() {
         `${expectedClass} 脚手架失败：${variantScaffold.stderr || variantScaffold.stdout}`,
       );
       const variantHtml = await readFile(path.join(root, projectName, "index.html"), "utf8");
+      const variantCreativePlan = JSON.parse(
+        await readFile(path.join(root, projectName, "creative-plan.json"), "utf8"),
+      );
       assert(
-        variantHtml.includes(expectedClass) && !variantHtml.includes('<div class="hero">'),
+        variantHtml.includes(expectedClass) &&
+          variantHtml.includes('data-creative-engine="cn-context-router-v2"') &&
+          !variantHtml.includes('<div class="hero">'),
         `${expectedClass} 未命中独立视觉系统，或仍退化为通用矩形 hero`,
       );
+      assert(
+        variantCreativePlan.route === expectedRoute &&
+          variantCreativePlan.creative_director?.engine === "cn-context-router-v2" &&
+          variantCreativePlan.creative_director?.auto_applied === true &&
+          variantCreativePlan.creative_director?.signals?.length >= 3 &&
+          variantCreativePlan.motion_roles?.length >= 3,
+        `${expectedClass} 缺少可审计的自动 Creative 路由`,
+      );
+      if (projectName === "self-test-birthday-card") {
+        assert(
+          variantHtml.includes('class="birthday-parent-scene"') &&
+            !variantHtml.includes('class="birthday-cake"') &&
+            !/\b(?:MOM|DAD|HBD|WITH LOVE)\b/.test(variantHtml),
+          "成年父母生日卡未命中克制仪式感视觉，或仍含模板化英文/儿童蛋糕元素",
+        );
+      }
+      if (projectName === "self-test-invitation-card") {
+        assert(
+          variantCreativePlan.content.eyebrow === "周末" &&
+            variantCreativePlan.content.hero === "聚餐邀请" &&
+            !/\bINVITE\b/.test(variantHtml),
+          "聚餐邀请未按中文日期提示与主标题拆分，或仍含模板化英文题头",
+        );
+      }
     }
 
     const stickerMediaPath = path.join(root, "sticker-source.png");
@@ -732,11 +776,23 @@ async function main() {
       "utf8",
     );
     assert(
-      stickerHtml.includes('class="sticker has-media"') &&
+      /class="sticker has-media creative-photo-reaction"/.test(stickerHtml) &&
         stickerHtml.includes('<div class="sticker-media">') &&
         !stickerHtml.includes('<div class="hero">') &&
         !stickerHtml.includes('<div class="decor">'),
       "照片表情未采用全屏原图，或仍包含通用卡片/圆环背景",
+    );
+    const stickerCreativePlan = JSON.parse(
+      await readFile(
+        path.join(root, stickerBrief.project_name, "creative-plan.json"),
+        "utf8",
+      ),
+    );
+    assert(
+      stickerCreativePlan.version === 1 &&
+        stickerCreativePlan.route === "photo-reaction" &&
+        stickerCreativePlan.motion_beats.length === 3,
+      "脚手架缺少可审计的创意计划",
     );
 
     const approvalProjectDir = await realpath(projectDir);

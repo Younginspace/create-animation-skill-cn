@@ -246,7 +246,19 @@ async function listAssetPaths(root) {
 export async function projectContractDigest(root) {
   const hash = createHash("sha256");
   const budget = { bytes: 0 };
-  for (const relativePath of [...CONTRACT_FILES, ...(await listAssetPaths(root))]) {
+  const optionalContractFiles = [];
+  try {
+    await access(path.join(root, "creative-plan.json"), constants.R_OK);
+    optionalContractFiles.push("creative-plan.json");
+  } catch {
+    // v0.2 projects did not yet have a creative plan; verification decides
+    // whether the current contract requires one.
+  }
+  for (const relativePath of [
+    ...CONTRACT_FILES,
+    ...optionalContractFiles,
+    ...(await listAssetPaths(root)),
+  ]) {
     await boundedDigestFile(root, relativePath, hash, budget);
   }
   return hash.digest("hex");

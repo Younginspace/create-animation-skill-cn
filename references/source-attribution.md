@@ -18,8 +18,9 @@
 - `motion-graphics` 中“短、无旁白、动效即信息”的边界；
 - `general-video` 中素材包、镜头计划与工程状态的做法；
 - `music-to-video` 中本地素材分期和节拍不应压过叙事的原则。
+- `hyperframes-creative` 中“先解释提示、再选择视觉”、视频画面区别于网页布局、背景/中景/前景职责、文字层级和 `build → breathe → resolve` 的创意方法。
 
-未直接复制上游 Skill 的英文长流程、subagent 编排、远程素材搜索、地图、网站抓取、HeyGen/TTS、英文 ASR、抠像权重下载和 CDN 依赖。脚手架脚本与基线 composition 为本次改造新写。
+`references/creative-direction.md` 是依据上述方法重新编写的中文 C 端短动画规范，并针对群聊、家庭事务、中文排版、国内离线字体和克制装饰做了改造。未直接复制上游 Skill 的英文长流程、subagent 编排、远程素材搜索、地图、网站抓取、HeyGen/TTS、英文 ASR、抠像权重下载和 CDN 依赖。脚手架脚本与基线 composition 为本次改造新写。
 
 ## `personal-plan` 范式
 
