@@ -776,10 +776,12 @@ async function main() {
       "utf8",
     );
     assert(
-      /class="sticker has-media creative-photo-reaction"/.test(stickerHtml) &&
+      /class="sticker has-media creative-photo-impact-reaction"/.test(stickerHtml) &&
         stickerHtml.includes('<div class="sticker-media">') &&
         !stickerHtml.includes('<div class="hero">') &&
-        !stickerHtml.includes('<div class="decor">'),
+        !stickerHtml.includes('<div class="decor">') &&
+        stickerHtml.includes('title.style.opacity = "1"') &&
+        stickerHtml.includes('stickerMedia.style.opacity = "1"'),
       "照片表情未采用全屏原图，或仍包含通用卡片/圆环背景",
     );
     const stickerCreativePlan = JSON.parse(
@@ -790,7 +792,7 @@ async function main() {
     );
     assert(
       stickerCreativePlan.version === 1 &&
-        stickerCreativePlan.route === "photo-reaction" &&
+        stickerCreativePlan.route === "photo-impact-reaction" &&
         stickerCreativePlan.motion_beats.length === 3,
       "脚手架缺少可审计的创意计划",
     );

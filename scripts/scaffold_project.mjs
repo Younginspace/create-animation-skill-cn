@@ -403,9 +403,28 @@ function splitCardText(brief, variant, context) {
   return { eyebrow: "", hero: source };
 }
 
+function splitPhotoStickerText(title) {
+  const source = String(title || "").trim();
+  const punct = source.match(/^(.{2,6})[，,:：、](.{2,8})$/u);
+  if (punct) return { eyebrow: punct[1], hero: punct[2] };
+  const status = source.match(/^(已到工位|已经到岗|我已到岗|正在上班|收到|已阅|明白)(.{2,8})$/u);
+  if (status) return { eyebrow: status[1], hero: status[2] };
+  return { eyebrow: "", hero: source };
+}
+
 function creativeRoute(brief, assets, variant, context) {
   if (brief.function === "photo-story") return "photo-story-editorial";
-  if (brief.function === "sticker" && assets.length) return "photo-reaction";
+  if (brief.function === "sticker" && assets.length) {
+    const title = String(brief.message.title || "").replace(/[\s，,。.!！?？]/g, "");
+    const contextText = [brief.message.title, brief.use_case].filter(Boolean).join(" ");
+    if (/梗|夸张|土味|魔性/.test(contextText)) return "photo-rough-meme";
+    if (/可爱|萌|亲切|对话贴纸/.test(contextText)) return "photo-cute-reaction";
+    if (/干净|清爽|克制|简洁/.test(contextText)) return "photo-reaction";
+    if (title.length <= 4 || /绝了|爆了|牛|赞|服了|救命|离谱/.test(contextText)) return "photo-impact-reaction";
+    if (/工作群|办公|职场|到岗|工位|秒回|收到|已阅|在办/.test(contextText)) return "photo-chat-status";
+    if (["warm", "playful"].includes(brief.style)) return "photo-cute-reaction";
+    return "photo-reaction";
+  }
   if (brief.function === "sticker") {
     const text = [brief.message.title, brief.use_case].filter(Boolean).join(" ");
     if (/工作群|办公|职场|收到|马上|已阅|安排|在办|已处理/.test(text)) return "text-work-reply";
@@ -564,6 +583,49 @@ function creativeProfile(route, brief, split, theme, textOnly) {
       second_focus: brief.message.title ? "editorial-title" : "next-photo-transition",
     };
   }
+  if (route === "photo-chat-status") {
+    return {
+      ...base,
+      audience: "需要在工作群快速报状态的用户",
+      tone: "清楚、利落，保留照片里的疲惫或幽默",
+      composition_mode: "安全文字区内的提示语和英雄大字",
+      visual_metaphor: "状态确认后立即进入响应",
+      decorative_budget: 2,
+      typography_register: "提示语紧凑，行动词更重；首帧完整可读",
+      concept: "照片先交代情绪，提示语与行动词分层形成可直接发送的工作群状态。",
+      layer_purposes: ["用户授权原图与主体安全裁切", "状态提示、英雄大字和必要可读性遮罩"],
+      second_focus: split.eyebrow || "status-signal",
+    };
+  }
+  if (route === "photo-impact-reaction" || route === "photo-rough-meme") {
+    const rough = route === "photo-rough-meme";
+    return {
+      ...base,
+      audience: "用短反应词参与朋友群聊天的用户",
+      tone: rough ? "直接、夸张、有意保留梗图粗粝感" : "短促、强反应、有冲击力",
+      composition_mode: rough ? "紧裁主体与高对比粗描边字" : "主体特写与偏置英雄大字",
+      visual_metaphor: rough ? "像刚从聊天现场截下来的反应" : "一次迅速命中的情绪重音",
+      decorative_budget: rough ? 2 : 1,
+      typography_register: "2—4字极重，首帧完整可读，动作只加强语气",
+      concept: rough ? "让照片和粗描边短句共同形成即时梗图反应。" : "让主体表情和短句在一次快速冲击中同步命中。",
+      layer_purposes: ["用户授权原图与更紧的主体裁切", "高对比英雄词和一次短促冲击"],
+      second_focus: "authorized-user-expression",
+    };
+  }
+  if (route === "photo-cute-reaction") {
+    return {
+      ...base,
+      audience: "希望表情亲切、耐用的聊天用户",
+      tone: "可爱、克制、不遮住主体",
+      composition_mode: "原图主体与小型对话语义层",
+      visual_metaphor: "角色在聊天里轻轻回应",
+      decorative_budget: 3,
+      typography_register: "圆润粗体与清楚描边，首帧完整可读",
+      concept: "保留真实照片的亲切感，用轻量对话层和低幅动作形成可长期使用的表情。",
+      layer_purposes: ["用户授权原图与主体安全裁切", "小型对话层、英雄词与少量状态点"],
+      second_focus: "speech-signal",
+    };
+  }
   if (route === "photo-reaction") {
     return {
       ...base,
@@ -586,8 +648,10 @@ function createCreativePlan(brief, assets) {
   const variant = brief.function === "card" ? cardVariant(brief) : null;
   const context = variant ? cardContext(brief, variant) : null;
   const route = creativeRoute(brief, assets, variant, context);
-  const split = brief.function === "sticker" && assets.length === 0
-    ? splitStickerText(brief.message.title)
+  const split = brief.function === "sticker"
+    ? assets.length === 0
+      ? splitStickerText(brief.message.title)
+      : splitPhotoStickerText(brief.message.title)
     : brief.function === "card" && assets.length === 0
       ? splitCardText(brief, variant, context)
       : { eyebrow: "", hero: brief.message.title };
@@ -758,6 +822,7 @@ const parentGlow = document.querySelector(".birthday-glow");
 const parentCandle = document.querySelector(".birthday-candle");
 const parentFlame = document.querySelector(".parent-flame");
 const parentSparks = [...document.querySelectorAll(".birthday-spark")];
+const stickerRoute = ${JSON.stringify(creativePlan.route)};
 const windows = ${JSON.stringify(photoWindows)};
 
 function applyFrame(seconds) {
@@ -808,6 +873,38 @@ function applyFrame(seconds) {
       spark.style.opacity = String(sparkEnter * sparkle);
       spark.style.transform = \`scale(\${.62 + sparkEnter*.38 + ambient*.04})\`;
     });
+  } else if (stickerMedia) {
+    const wave = Math.sin(p * Math.PI * 2);
+    const hit = Math.max(0, wave);
+    const rough = stickerRoute === "photo-rough-meme";
+    const jitter = Math.sin(p * Math.PI * 8);
+    const impact = stickerRoute === "photo-impact-reaction" || stickerRoute === "photo-rough-meme";
+    const cute = stickerRoute === "photo-cute-reaction";
+    stickerMedia.style.opacity = "1";
+    stickerMedia.style.transform = impact
+      ? rough
+        ? \`scale(\${1.09 + hit*.055}) translate3d(\${jitter*4}px,\${jitter*-3}px,0)\`
+        : \`scale(\${1.075 + hit*.055}) translate3d(\${wave*3}px,\${wave*-2}px,0)\`
+      : cute
+        ? \`scale(\${1.04 + hit*.018}) translateY(\${wave*-4}px)\`
+        : \`scale(\${1.045 + hit*.028}) translateY(\${wave*-3}px)\`;
+    title.style.opacity = "1";
+    title.style.transform = impact
+      ? rough
+        ? \`translate3d(\${jitter*5}px,\${jitter*-3}px,0) scale(\${1 + hit*.1}) rotate(\${jitter*1.5}deg)\`
+        : \`scale(\${1 + hit*.12}) rotate(\${Math.sin(p*Math.PI*4)*hit*1.8}deg)\`
+      : cute
+        ? \`translateY(\${wave*-5}px) scale(\${1 + hit*.025})\`
+        : \`translateY(\${wave*-3}px) scale(\${1 + hit*.035})\`;
+    if (kicker) {
+      kicker.style.opacity = "1";
+      kicker.style.transform = impact
+        ? \`translateX(\${wave*5}px) rotate(\${wave*-1.2}deg)\`
+        : \`translateX(\${wave*4}px)\`;
+    }
+    if (subtitle) subtitle.style.opacity = "1";
+    if (signature) signature.style.opacity = "1";
+    if (content) content.style.transform = "translateY(0)";
   } else if (textSticker) {
     const eyebrowEnter = easeOut(clamp((current - .08) / .46));
     const heroEnter = backOut(clamp((current - .24) / .58));
@@ -848,10 +945,6 @@ function applyFrame(seconds) {
     if (signature) signature.style.opacity = String(clamp((current - .8) / .7) * exit);
     if (kicker) kicker.style.opacity = String(clamp((current - .16) / .46) * exit);
     if (content) content.style.transform = \`translateY(\${(1-enter)*24}px)\`;
-  }
-  if (stickerMedia) {
-    stickerMedia.style.opacity = String(enter * exit);
-    stickerMedia.style.transform = \`scale(\${1.015 + Math.max(0,pulse)*.018}) translateY(\${pulse*-5}px)\`;
   }
   if (cardMedia) {
     cardMedia.style.opacity = String(enter);
@@ -928,7 +1021,8 @@ function compositionHtml(brief, assets, creativePlan) {
       ? `
       <div class="sticker-media">${mediaMarkup(brief, assets)}</div>
       <div class="content">
-        <div class="title">${escapeHtml(brief.message.title)}</div>
+        ${creativePlan.content.eyebrow ? `<div class="kicker">${escapeHtml(creativePlan.content.eyebrow)}</div>` : ""}
+        <div class="title">${escapeHtml(creativePlan.content.hero || brief.message.title)}</div>
         <div class="subtitle">${escapeHtml(brief.message.subtitle || "")}</div>
         <div class="signature">${escapeHtml(brief.message.signature || "")}</div>
       </div>`
@@ -1002,6 +1096,24 @@ function compositionHtml(brief, assets, creativePlan) {
     .sticker.has-media .content { justify-content: flex-end; padding-bottom: ${brief.aspect_ratio === "9:16" ? "230px" : "96px"}; color: #fff; }
     .sticker .title { max-width: 96%; font-size: ${brief.aspect_ratio === "9:16" ? "138px" : "122px"}; line-height: .98; }
     .sticker.has-media .title { text-shadow: 0 5px 0 rgba(0,0,0,.9), 0 0 24px rgba(0,0,0,.85); }
+    .sticker.has-media .kicker { margin-bottom: 18px; padding: 12px 22px; border-radius: 999px; color: #111; background: rgba(255,255,255,.92); font-size: 42px; font-weight: 900; letter-spacing: .04em; text-shadow: none; }
+    .sticker.has-media.creative-photo-chat-status::after { background: linear-gradient(135deg,rgba(0,0,0,.62),rgba(0,0,0,.08) 48%,transparent 70%); }
+    .sticker.has-media.creative-photo-chat-status .content { align-items: flex-start; justify-content: flex-start; padding: 82px 72px; text-align: left; }
+    .sticker.has-media.creative-photo-chat-status .title { max-width: 74%; font-size: 132px; text-align: left; transform-origin: 0 50%; }
+    .sticker.has-media.creative-photo-chat-status .kicker { display: flex; align-items: center; gap: 14px; background: #f4f0e8; }
+    .sticker.has-media.creative-photo-chat-status .kicker::before { content: ""; width: 18px; height: 18px; border-radius: 50%; background: #37d67a; box-shadow: 0 0 0 7px rgba(55,214,122,.22); }
+    .sticker.has-media.creative-photo-impact-reaction .content, .sticker.has-media.creative-photo-rough-meme .content { align-items: flex-start; justify-content: flex-end; padding: 72px 68px 82px; text-align: left; }
+    .sticker.has-media.creative-photo-impact-reaction .title, .sticker.has-media.creative-photo-rough-meme .title { max-width: 88%; font-size: 184px; transform-origin: 15% 80%; }
+    .sticker.has-media.creative-photo-impact-reaction .title { color: #fff36d; -webkit-text-stroke: 3px #111; paint-order: stroke fill; }
+    .sticker.has-media.creative-photo-rough-meme .media { filter: saturate(.68) contrast(1.14); }
+    .sticker.has-media.creative-photo-rough-meme .kicker { border-radius: 0; background: #fff36d; box-shadow: 7px 7px 0 #111; transform: rotate(-3deg); }
+    .sticker.has-media.creative-photo-rough-meme .title { color: #fff; letter-spacing: -.06em; -webkit-text-stroke: 6px #000; paint-order: stroke fill; text-shadow: 9px 9px 0 #000; }
+    .sticker.has-media.creative-photo-cute-reaction .content { align-items: flex-start; justify-content: flex-end; padding: 78px 68px; text-align: left; }
+    .sticker.has-media.creative-photo-cute-reaction .kicker { color: #5a3d26; background: #fff1a8; }
+    .sticker.has-media.creative-photo-cute-reaction .title { position: relative; max-width: 76%; padding: 24px 34px 28px; border: 5px solid rgba(255,255,255,.94); border-radius: 36px 36px 36px 8px; background: rgba(36,25,18,.76); font-size: 118px; box-shadow: 0 14px 30px rgba(0,0,0,.22); }
+    .sticker.has-media.creative-photo-cute-reaction .title::after { content: ""; position: absolute; left: 26px; bottom: -29px; width: 34px; height: 34px; border-left: 5px solid rgba(255,255,255,.94); background: rgba(36,25,18,.76); transform: skewY(-38deg); }
+    .sticker.has-media.creative-photo-reaction .content { align-items: flex-start; justify-content: flex-end; padding: 72px 68px 88px; text-align: left; }
+    .sticker.has-media.creative-photo-reaction .title { max-width: 70%; font-size: 132px; padding-bottom: 18px; border-bottom: 12px solid #fff36d; transform-origin: 0 60%; }
     .sticker.no-media { background: ${palette.background}; }
     .sticker.no-media .title { color: ${palette.accent}; }
     .text-sticker { position: absolute; inset: 0; z-index: 2; overflow: hidden; }
