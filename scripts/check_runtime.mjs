@@ -7,6 +7,7 @@ import {
   NO_TRACKING_ENV,
   resolveRealBrowserPath,
 } from "./runtime_guard.mjs";
+import { directFontCandidates } from "./direct_sticker_common.mjs";
 
 const REQUIRED_HYPERFRAMES_VERSION = "0.7.83";
 
@@ -54,17 +55,52 @@ const overrideCli = overridePath
   : null;
 const installedCli = overridePath ? null : inspectHyperframesCli("hyperframes");
 const selectedCli = overrideCli ?? installedCli;
-const fontCandidates = [
-  "/System/Library/Fonts/STHeiti Medium.ttc",
-  "/System/Library/Fonts/PingFang.ttc",
-  "/Library/Fonts/Microsoft Yahei.ttf",
-  "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-];
+const fontCandidates = directFontCandidates();
 const fontPath = fontCandidates.find(existsSync) ?? null;
+const ffmpegExecutable = process.env.FFMPEG_PATH || "ffmpeg";
+const ffprobeExecutable = process.env.FFPROBE_PATH || "ffprobe";
+const ffmpegFilterProbe = spawnSync(ffmpegExecutable, ["-hide_banner", "-filters"], {
+  encoding: "utf8",
+  timeout: 5000,
+  env: NO_TRACKING_ENV,
+});
+const ffmpegFilters = ffmpegFilterProbe.status === 0 ? ffmpegFilterProbe.stdout || "" : "";
+const ffmpegEncoderProbe = spawnSync(ffmpegExecutable, ["-hide_banner", "-encoders"], {
+  encoding: "utf8", timeout: 5000, env: NO_TRACKING_ENV,
+});
+const ffmpegMuxerProbe = spawnSync(ffmpegExecutable, ["-hide_banner", "-muxers"], {
+  encoding: "utf8", timeout: 5000, env: NO_TRACKING_ENV,
+});
+const ffmpegDemuxerProbe = spawnSync(ffmpegExecutable, ["-hide_banner", "-demuxers"], {
+  encoding: "utf8", timeout: 5000, env: NO_TRACKING_ENV,
+});
+const ffmpegEncoders = ffmpegEncoderProbe.status === 0 ? ffmpegEncoderProbe.stdout || "" : "";
+const ffmpegMuxers = ffmpegMuxerProbe.status === 0 ? ffmpegMuxerProbe.stdout || "" : "";
+const ffmpegDemuxers = ffmpegDemuxerProbe.status === 0 ? ffmpegDemuxerProbe.stdout || "" : "";
+const directFilterSupport = {
+  drawtext: /\bdrawtext\b/.test(ffmpegFilters),
+  palettegen: /\bpalettegen\b/.test(ffmpegFilters),
+  paletteuse: /\bpaletteuse\b/.test(ffmpegFilters),
+  png_encoder: /\bpng\b/.test(ffmpegEncoders),
+  gif_encoder: /\bgif\b/.test(ffmpegEncoders),
+  mjpeg_encoder: /\bmjpeg\b/.test(ffmpegEncoders),
+  image2_muxer: /\bimage2\b/.test(ffmpegMuxers),
+  image2_demuxer: /\bimage2\b/.test(ffmpegDemuxers),
+  gif_muxer: /\bgif\b/.test(ffmpegMuxers),
+};
+const ffmpegAvailable = command(ffmpegExecutable, ["-version"]).available;
+const ffprobeAvailable = command(ffprobeExecutable, ["-version"]).available;
+const directPngAvailable = nodeMajor >= 22 && ffmpegAvailable && ffprobeAvailable && Boolean(fontPath) &&
+  directFilterSupport.drawtext && directFilterSupport.png_encoder && directFilterSupport.image2_muxer;
+const directGifAvailable = directPngAvailable && directFilterSupport.palettegen && directFilterSupport.paletteuse &&
+  directFilterSupport.gif_encoder && directFilterSupport.gif_muxer;
+const directSelectionAvailable = nodeMajor >= 22 && ffmpegAvailable && ffprobeAvailable && Boolean(fontPath) &&
+  directFilterSupport.drawtext && directFilterSupport.mjpeg_encoder && directFilterSupport.image2_muxer &&
+  directFilterSupport.image2_demuxer;
 const report = {
   node: { available: true, version: process.versions.node, meets_requirement: nodeMajor >= 22 },
-  ffmpeg: command("ffmpeg", ["-version"]),
-  ffprobe: command("ffprobe", ["-version"]),
+  ffmpeg: command(ffmpegExecutable, ["-version"]),
+  ffprobe: command(ffprobeExecutable, ["-version"]),
   browser,
   browser_guard: {
     available: browserGuardAvailable,
@@ -76,6 +112,15 @@ const report = {
   hyperframes_cli_override: overrideCli,
   selected_hyperframes_cli: selectedCli,
   chinese_font: { available: Boolean(fontPath), path: fontPath },
+  direct_sticker: {
+    available: directPngAvailable && directGifAvailable,
+    png_available: directPngAvailable,
+    gif_available: directGifAvailable,
+    semantic_selection_available: directSelectionAvailable,
+    requires_hyperframes_cli: false,
+    requires_browser: false,
+    filters: directFilterSupport,
+  },
   automatic_network_fallback: false,
   telemetry_disabled_for_hyperframes: true,
   root_cli_background_requests_suppressed_by_json: true,
@@ -97,7 +142,28 @@ report.capabilities = {
   "author-only": report.node.meets_requirement,
   "preview-check": canPreview,
   "full-render": canRender,
+  "direct-sticker": report.direct_sticker.available,
+  "direct-sticker-png": report.direct_sticker.png_available,
+  "direct-sticker-gif": report.direct_sticker.gif_available,
 };
+report.direct_sticker_missing = [];
+if (!report.ffmpeg.available) report.direct_sticker_missing.push("ffmpeg");
+if (!report.ffprobe.available) report.direct_sticker_missing.push("ffprobe");
+if (!directFilterSupport.drawtext) report.direct_sticker_missing.push("ffmpeg drawtext/libfreetype");
+if (!directFilterSupport.palettegen || !directFilterSupport.paletteuse) {
+  report.direct_sticker_missing.push("ffmpeg palettegen/paletteuse");
+}
+if (!report.chinese_font.available) report.direct_sticker_missing.push("已授权中文字体");
+if (!report.node.meets_requirement) report.direct_sticker_missing.push("Node.js 22+");
+if (!directFilterSupport.png_encoder || !directFilterSupport.image2_muxer) {
+  report.direct_sticker_missing.push("ffmpeg PNG encoder/image2 muxer");
+}
+if (!directFilterSupport.gif_encoder || !directFilterSupport.gif_muxer) {
+  report.direct_sticker_missing.push("ffmpeg GIF encoder/muxer");
+}
+if (!directSelectionAvailable) {
+  report.direct_sticker_missing.push("语义联系表所需的 MJPEG encoder/image2 muxer/demuxer");
+}
 report.missing = [];
 if (!report.node.meets_requirement) report.missing.push("Node.js 22+");
 if (!selectedCli?.available) {

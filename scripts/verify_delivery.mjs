@@ -51,7 +51,7 @@ function parseFrameRate(value) {
   return numerator / denominator;
 }
 
-async function inspectGifLoop(filePath) {
+export async function inspectGifLoop(filePath) {
   const handle = await open(filePath, constants.O_RDONLY | constants.O_NOFOLLOW);
   let position = 0;
   const info = await handle.stat();

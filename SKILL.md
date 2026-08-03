@@ -1,6 +1,6 @@
 ---
 name: create-animation
-description: 用用户在本轮明确提供并授权的静态 JPEG/PNG 照片、截图、栅格图标和短文案制作可分享的动态表情包、动态祝福/邀请卡或照片故事短片，并交付 MP4 或 GIF 文件。适用于“把这张图做成会动的表情”“做一张生日动态卡”“把这些照片做成十几秒回忆短片”等请求，也适用于修改本 Skill 已生成的动画工程。不用于人物口型驱动、影视级角色动画、纯文生视频、现成视频剪辑、配乐、旁白、口播字幕、多段视频重排、超过30秒的复杂剪辑、自动发布到社交平台，或只有静态修图需求的请求。
+description: 用用户在本轮明确提供并授权的静态 JPEG/PNG、单段 MP4/MOV/WebM/MKV、截图、栅格图标和短文案制作可分享的动态或静态表情包、动态祝福/邀请卡或照片故事短片，并交付 GIF、PNG 或 MP4 文件。适用于“把这张图做成会动的表情”“从录屏里截发送成功后的三秒做 GIF 并加字”“给这张照片加字做静态表情”“做一张生日动态卡”“把这些照片做成十几秒回忆短片”等请求，也适用于修改本 Skill 已生成的动画工程。不用于人物口型驱动、影视级角色动画、纯文生视频、配乐、旁白、口播字幕、台词自动定位、多段视频重排、超过一个片段的复杂剪辑、超过30秒的成片或自动发布到社交平台。
 ---
 
 # 制作动画
@@ -10,11 +10,11 @@ description: 用用户在本轮明确提供并授权的静态 JPEG/PNG 照片、
 ## 执行流程
 
 1. **选择一个功能**
-   - 单张照片、贴纸或短句，强调循环反应：`sticker`（动态表情包）。
+   - 单张照片、单段视频、贴纸或短句，强调聊天反应：`sticker`（动态或静态表情包）。
    - 祝福、邀请、官宣或提醒：`card`（动态卡片）。
    - 3—12张照片按真实顺序讲一件事：`photo-story`（照片故事）。
    - 无法唯一判断时，只问“你更想要表情包、动态卡片，还是照片短片？”
-   - 只读取命中的一个规则文件：[sticker-rules.md](references/sticker-rules.md)、[card-rules.md](references/card-rules.md) 或 [photo-story-rules.md](references/photo-story-rules.md)。
+   - 只读取命中的一个规则文件：[sticker-rules.md](references/sticker-rules.md)、[card-rules.md](references/card-rules.md) 或 [photo-story-rules.md](references/photo-story-rules.md)。`sticker` 使用视频输入或要求静态 PNG 输出时，再读取 [direct-sticker-contract.md](references/direct-sticker-contract.md)。
 
 2. **检查最低输入**
    - 始终复用本轮对话和附件，不重复索取。
@@ -23,14 +23,15 @@ description: 用用户在本轮明确提供并授权的静态 JPEG/PNG 照片、
      - `sticker` 可做纯文字表情；
      - `card` 可做纯文字动态图卡；
      - `photo-story` 必须有至少3张图片，缺失时追问。
-   - 用户未指定时：`sticker` 采用聊天分享、1:1、循环 GIF；`card` 采用聊天分享、1:1、MP4；`photo-story` 采用聊天分享、9:16、MP4。
+   - 用户未指定时：`sticker` 采用聊天分享、1:1；视频、纯文字或“做成会动的”采用循环 GIF，用户明确只要静态图时采用 PNG；`card` 采用聊天分享、1:1、MP4；`photo-story` 采用聊天分享、9:16、MP4。
    - 不为配色、字体或每个动画动作逐项追问；根据内容和素材保守选择。
    - 纯文字 `sticker`、无图 `card`，或用户明确要求提升设计感时，必须读取 [creative-direction.md](references/creative-direction.md)；不要把渲染脚手架当作视觉终稿。
 
 3. **锁定事实与授权**
    - 只使用用户在本轮提供或逐项明确授权的素材；“本地能读取”不等于已授权。
    - 把附件沙箱或用户批准目录写入 `approved_media_roots`；每个素材写 `source_id` 和 `authorized: true`。脚本会拒绝素材根以外的路径、符号链接，以及 `/private`、`/tmp`、用户主目录等过宽授权。
-   - 首版只接收可完整解析的静态 JPEG/PNG；PNG 必须通过像素流解析，JPEG 还必须由预装 FFmpeg 真实解码。动画 GIF/WebP/AVIF/APNG 不受寻帧时间线控制，必须拒绝。
+   - 常规动画工程只接收可完整解析的静态 JPEG/PNG；PNG 必须通过像素流解析，JPEG 还必须由预装 FFmpeg 真实解码。动画 GIF/WebP/AVIF/APNG 不受寻帧时间线控制，必须拒绝。
+   - 直接表情链路额外接收一个 MP4/MOV/WebM/MKV 或一个静态 JPEG/PNG。视频只允许一个视频流、最多一个音频流；音频不进入成品。拒绝字幕、数据、附件流、多段拼接和超过512MB的源视频。
    - 不编造照片中的地点、人物关系、日期、经历或祝福对象。
    - 未知事实不写进字幕；可把用户原话缩短，但不得改变含义。
    - 首版不接收音乐；若用户要求配乐，说明当前仅支持图片和文字，不联网找歌。
@@ -38,6 +39,17 @@ description: 用用户在本轮明确提供并授权的静态 JPEG/PNG 照片、
    - 在 `privacy_review` 留下三选一状态与依据：确认无敏感内容、用户明确同意保留、输入素材已先行脱敏。未完成确认不得生成工程。
 
 4. **形成 brief 并脚手架**
+   - 视频截 GIF 或静态 PNG 不进入 HyperFrames 工程。按 [direct-sticker-contract.md](references/direct-sticker-contract.md) 形成 `direct-sticker-source` brief：明确时间直接渲染；视觉事件先生成联系表，由当前 Agent 的看图能力定位，证据不足时让用户选候选片段。看图后必须明确 `text_position: top|bottom` 与 `crop_anchor: center|top|bottom|left|right`，v1 不用 `auto` 猜主体位置。
+   - 由执行者创建 direct brief 时，通过 stdin 使用私有入口，不在工程中留下源路径：
+
+```bash
+node scripts/direct_sticker_from_stdin.mjs validate
+node scripts/direct_sticker_from_stdin.mjs selection <输出父目录>
+node scripts/direct_sticker_from_stdin.mjs render <输出父目录>
+```
+
+   - `selection` 只用于尚未解析时间的 `visual-query`。视频超过30分钟且没有大概分钟范围时先追问；用户给出准确时间时不需要 VLM。台词定位需要 ASR，当前无本地 ASR 证据时让用户给大概时间。解析后必须在 brief 中保留 `selection_index_path` 和 `evidence_samples`；渲染入口会核对联系表、源摘要、查询和样本时间。
+   - 以下 source brief、脚手架、HyperFrames 快照与渲染流程只用于常规图片动画工程：
    - 按 [output-contract.md](references/output-contract.md) 形成 source brief；它只在授权执行环境中使用。
    - 由执行者创建时，把 JSON 通过 stdin 交给私有包装入口。它会在权限0700的任务临时目录中以0600写入，依次校验和脚手架，并在 `finally` 中覆盖 validate/scaffold 成功或失败的所有路径做清理：
 
@@ -75,6 +87,7 @@ node scripts/check_runtime.mjs
      - `preview-check`：可本地逐帧检查，但不能交付媒体成片；
      - `full-render`：可检查、渲染并验证 MP4/GIF。
    - 不在运行时加载 Google Fonts、jsDelivr、国外地图或远程图片。所有必需资源必须本地化。
+   - direct sticker 只需要 FFmpeg、ffprobe 和已授权本地中文字体；FFmpeg 必须包含 `drawtext/libfreetype`，GIF 还必须包含 `palettegen/paletteuse`。它不需要 HyperFrames CLI 或浏览器。
 
 6. **预览、修正、再渲染**
    - 从本 Skill 目录先运行 `node scripts/check_project.mjs <工程目录>`。该入口会先验证离线工程闭环，再调用固定版本的 HyperFrames 做快照检查。
@@ -87,6 +100,7 @@ node scripts/check_runtime.mjs
    - 从本 Skill 目录运行 `node scripts/render_project.mjs <工程目录> [draft|high]`，让 `brief.output_format` 决定 MP4 或循环 GIF。
 
 7. **交付并说明**
+   - direct sticker 渲染后先查看全部 `previews/`，确认文案换行、裁切锚点、主体遮挡与循环接缝，再运行 `node scripts/approve_direct_sticker.mjs <工程目录>`；最后使用 `node scripts/verify_direct_sticker.mjs <final.gif|final.png> <delivery-brief.json> <visual-approval.json>` 验证。批准绑定当前交付声明、成品和预览摘要，任一变化后必须重新查看与批准。常规图片动画继续使用下述 `verify_delivery.mjs`。
    - 使用 `node scripts/verify_delivery.mjs <产物路径> <delivery-brief.json>` 做最终检查；缺 brief 或 ffprobe 都不得通过。
    - `author-only` 或 `preview-check` 只能说明阻断与可恢复工程位置；不得把 HTML、ZIP、截图或旧产物冒充成片。
    - 默认交付一个主文件；仅在分享场景确实需要时增加一个兼容格式。
@@ -95,7 +109,7 @@ node scripts/check_runtime.mjs
 
 ## 工具规则
 
-- 读取静态 JPEG/PNG 图片元数据并查看实际像素后再设计，不凭文件名猜内容；首版不接收视频或 SVG。
+- 读取静态 JPEG/PNG 实际像素，或查看视频联系表和最终片段预览后再设计，不凭文件名或自然语言猜画面时间；不接收 SVG。
 - 脚本用于可重复的结构、路径、校验和工程生成；视觉判断仍需看快照。
 - HyperFrames 只负责确定性的 HTML 动效和渲染，不替代文生视频或角色动画模型。
 - 外部素材搜索不是默认步骤；必须搜索时，先确认授权和来源，并下载到工程内再渲染。
@@ -119,11 +133,15 @@ node scripts/check_runtime.mjs
 - 人像主体是否完整、图片是否未拉伸、切换是否无闪白？
 - 循环产物首尾是否自然，非循环产物是否有稳定结束帧？
 - 是否先预览检查、再渲染、最后验证文件？
+- direct sticker 是否查看了全部预览并生成与当前成品摘要一致的视觉批准？
+- 视频语义定位是否有编号联系表或用户确认；是否避免把视觉猜测写成确定时间？
+- 视频表情是否只有一个1.5—6秒片段、已移除音频并通过循环 GIF 验证？
+- 静态表情是否交付真实512×512 PNG，而不是截图、HTML 或伪扩展名？
 - 交付说明是否区分“已生成视频”和“尚未完成、只保留工程”？
 
 ## 运行边界
 
-- 单个作品默认不超过30秒；需要完整剪辑、口播字幕或多段视频重排时交给视频剪辑能力。
+- 单个动画作品默认不超过30秒；视频表情只截取一个1.5—6秒片段。需要完整剪辑、口播字幕、台词自动定位或多段视频重排时交给视频剪辑能力。
 - 不调用海外 TTS、ASR、地图、字体或素材服务作为必需链路。
 - 不在没有运行环境证据时承诺可渲染，不在没有发布权限时替用户发布。
 - 不把用户素材上传到未经确认的第三方服务。

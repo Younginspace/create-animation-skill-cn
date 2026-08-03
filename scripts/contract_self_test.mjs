@@ -12,6 +12,7 @@ import {
   snapshotEvidenceDigest,
 } from "./approve_preview.mjs";
 import { validateDeliveryBriefContract } from "./delivery_brief_contract.mjs";
+import { runDirectStickerSelfTest } from "./direct_sticker_self_test.mjs";
 import { projectContractDigest } from "./runtime_guard.mjs";
 import { main as scaffoldMain, sanitizeImage } from "./scaffold_project.mjs";
 import {
@@ -1222,8 +1223,9 @@ async function main() {
       "brief.loop=false 时含 NETSCAPE 无限循环扩展的 GIF 错误通过",
     );
 
+    const directResult = await runDirectStickerSelfTest();
     console.log(
-      "结果：通过（授权前置门、brief/素材资源上限、GIF/APNG/伪PNG、PNG/JPEG私有元数据、JPEG真解码、宽路径拒绝、事务回滚/无覆写、离线CSP/网络API门、确定性时间线、严格工程契约、工程与快照摘要绑定的人工预览批准、冻结执行入口、CLI后台请求抑制、浏览器离线守卫、成品单视频流/编码/尺寸/帧率/GIF循环、ffprobe强校验）",
+      `结果：通过（授权前置门、brief/素材资源上限、GIF/APNG/伪PNG、PNG/JPEG私有元数据、JPEG真解码、宽路径拒绝、事务回滚/无覆写、离线CSP/网络API门、确定性时间线、严格工程契约、工程与快照摘要绑定的人工预览批准、冻结执行入口、CLI后台请求抑制、浏览器离线守卫、成品单视频流/编码/尺寸/帧率/GIF循环、ffprobe强校验；direct sticker ${directResult}）`,
     );
     return 0;
   } catch (error) {

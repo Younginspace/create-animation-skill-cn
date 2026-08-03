@@ -6,6 +6,10 @@ HyperFrames 本体是 Apache-2.0 开源项目，composition 是本地 HTML/CSS/J
 
 本 Skill 把远程字体、CDN脚本、地图、HeyGen、海外TTS/ASR和素材搜索移出必需链路。基线 composition 不依赖 GSAP CDN。生产执行阶段**完全禁止** `pnpm dlx`、`npx`、`bunx` 等自动联网回退；只接受预装的 `hyperframes` 命令，或 `HYPERFRAMES_CLI` 指向的可执行文件，且版本必须严格为 `0.7.83`。
 
+视频截取 GIF 与静态 PNG 使用独立的 direct sticker 链路：运行脚本仍要求 Node.js 22+，媒体侧只要求预装 FFmpeg、ffprobe 和本地中文字体，不调用 HyperFrames CLI 或浏览器。FFmpeg 必须带 `drawtext/libfreetype` 和相应 PNG/GIF encoder/muxer；GIF 还必须带 `palettegen/paletteuse`，语义联系表还需要 MJPEG encoder 与 image2 muxer/demuxer。这条链路不改变常规图片动画工程对 HyperFrames 0.7.83 的固定版本要求。
+
+direct sticker 会用 `O_NOFOLLOW`、目标 inode 复核、处理前后 `realpath` 复核和私有临时副本防止普通的符号链接与文件替换。Node.js 标准库无法像原生 `openat(2)` 那样逐级锁定祖先目录句柄，因此生产边界还必须保证：每个任务使用独占的附件目录，授权根及其祖先目录不能由不可信并发进程改名或替换；不要在多租户共享可写目录中直接运行这些脚本。该 OS/容器文件系统隔离是安全契约的一部分。
+
 ## 运行档位
 
 ### `author-only`
@@ -75,6 +79,7 @@ node <SKILL_DIR>/scripts/verify_delivery.mjs renders/final.<mp4|gif> delivery-br
 - 浏览器缺失：停在 `author-only`，不要在用户等待时临时下载大型浏览器。
 - FFmpeg 或 ffprobe 缺失：停在 `preview-check`，保留工程和快照；不要声称 MP4 已完成。
 - 中文字体缺字：更换本地授权字体后重新检查换行与边界。
+- direct sticker 缺少 `drawtext/libfreetype`、`palettegen/paletteuse` 或 ffprobe：停止并报告镜像能力，不绕到浏览器或联网下载替代品；设置 `CREATE_ANIMATION_FONT_PATH` 指向平台已授权字体。
 - GIF 过大：优先缩短至6秒内；正式渲染入口固定优化为512px宽、12fps、128色。仍过大时在征得用户同意后交付MP4。
 - `check_project.mjs` 失败：先修复工程闭环或 HyperFrames 报错后重跑；不得绕过包装入口直接渲染。
 - `render_project.mjs` 报缺少批准：查看最新 `snapshots/verified-*` 的全部关键帧，显式运行 `approve_preview.mjs`；工程或快照已经变化时必须重新检查，不能复制旧 `approval.json`。

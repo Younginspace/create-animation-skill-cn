@@ -1,0 +1,36 @@
+{
+  "schema_kind": "direct-sticker-source",
+  "schema_version": 1,
+  "project_name": "screen-success",
+  "source": {
+    "path": "/absolute/authorized/screen-recording.mp4",
+    "source_id": "attachment-1",
+    "kind": "video",
+    "authorized": true,
+    "alt": "用户本轮提供的录屏"
+  },
+  "approved_media_roots": ["/absolute/authorized"],
+  "clip": {
+    "mode": "visual-query",
+    "query": "发送成功提示出现之后"
+  },
+  "message": {
+    "title": "搞定了"
+  },
+  "use_case": "群聊表情",
+  "aspect_ratio": "1:1",
+  "duration_seconds": 3,
+  "output_format": "gif",
+  "style": "energetic",
+  "loop": true,
+  "text_position": "bottom",
+  "crop_anchor": "center",
+  "facts_to_preserve": [
+    "只截取成功提示后的片段"
+  ],
+  "privacy_review": {
+    "status": "reviewed-no-sensitive-content",
+    "confirmation": "已检查选中片段，不含账号、通知、聊天隐私或状态栏敏感信息",
+    "actions": []
+  }
+}

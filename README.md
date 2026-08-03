@@ -1,8 +1,10 @@
 # create-animation-skill-cn
 
-面向中文 C 端用户的可审计动画制作 Skill。它把用户明确授权的静态 JPEG/PNG 和短文案制作成：
+面向中文 C 端用户的可审计动画制作 Skill。它把用户明确授权的静态 JPEG/PNG、单段视频和短文案制作成：
 
 - 动态表情包（GIF）
+- 视频片段表情包（GIF）
+- 静态照片表情包（PNG）
 - 动态祝福卡、生日卡与邀请卡（MP4）
 - 30 秒以内的照片故事（MP4）
 
@@ -10,7 +12,14 @@
 
 ## 当前状态
 
-`v0.4.1` 已把中文语境自动 Creative 路由接入实际工程协议，并强化照片表情的自动美学路由：
+`v0.5.0` 在中文语境 Creative 路由之外，新增不依赖 HyperFrames/浏览器的视频截 GIF 与静态 PNG 链路：
+
+- 用户给出明确时间时直接截取，不调用 VLM；描述“成功提示出现后”等视觉事件时，本地抽取编号联系表供当前 Agent 看图定位；
+- 视频表情固定为单个1.5—6秒片段、512×512、12fps、无限循环 GIF，音频一律移除；
+- 静态照片表情直接交付512×512 PNG，不会为了套动画链路强制输出 GIF 或 MP4；
+- 语义搜索单次最多覆盖30分钟，更长视频先让用户缩小大概分钟范围；准确时间截取不受该搜索窗口限制；
+- 台词自动定位仍需要 ASR，当前没有本地 ASR 时不会拿画面模型猜台词；
+- direct sticker 只依赖 FFmpeg、ffprobe 和本地中文字体，不依赖 HyperFrames CLI 或无头浏览器；
 
 - 照片表情默认使用全屏原图，不再叠加冗余装饰背景；
 - 成年父母生日、儿童生日、家庭聚餐邀请、考试加油与一般提醒拥有不同视觉系统；
@@ -24,7 +33,7 @@
 - GitHub/ZIP 安装导致脚本失去可执行位时，浏览器守卫会自动生成私有可执行副本；
 - 透明背景 GIF 尚未作为已验证能力开放。
 
-已用十个典型用户案例完成 v0.4 全量复测：八个可交付案例均重新完成“工程生成 → 关键帧人审 → GIF/MP4 渲染 → ffprobe 验证”，两个边界案例正确暂停或转交。脚手架仍是可修改的设计起点；`SKILL.md` 要求交付前按真实文案和素材进行视觉判断。
+v0.5 已新增并实测：录屏视觉语义选段、明确时间视频截 GIF、真实照片静态 PNG，以及超过30分钟且范围不足时的安全暂停；原有图片动画合约回归测试保持通过。脚手架仍是可修改的设计起点；`SKILL.md` 要求交付前按真实文案和素材进行视觉判断。
 
 ## 安装
 
@@ -39,11 +48,16 @@ git clone --depth 1 https://github.com/Younginspace/create-animation-skill-cn.gi
 
 ## 运行环境
 
-纯文字工程生成需要：
+合约校验和纯文字工程生成需要：
 
 - Node.js 22+
 
-预览与渲染还需要预装：
+视频截 GIF 或静态 PNG 需要 Node.js 22+，并只额外要求预装：
+
+- FFmpeg 与 ffprobe（FFmpeg 带 `drawtext/libfreetype`，GIF 还需 `palettegen/paletteuse`）
+- 有明确授权的本地中文字体
+
+常规图片动画的预览与渲染另外需要：
 
 - `hyperframes@0.7.83` CLI
 - Chrome 或 Chromium
@@ -61,7 +75,19 @@ node scripts/check_runtime.mjs
 node scripts/contract_self_test.mjs
 ```
 
-输入契约示例位于 [`assets/brief.example.json`](assets/brief.example.json)。
+常规动画输入示例位于 [`assets/brief.example.json`](assets/brief.example.json)，视频/静态表情示例位于 [`assets/direct-sticker.example.json`](assets/direct-sticker.example.json)。
+
+视频或静态表情的 direct sticker 流程见 [`references/direct-sticker-contract.md`](references/direct-sticker-contract.md)：
+
+```bash
+# stdin 输入 direct-sticker-source JSON
+node scripts/direct_sticker_from_stdin.mjs validate
+node scripts/direct_sticker_from_stdin.mjs selection ./runs
+node scripts/direct_sticker_from_stdin.mjs render ./runs
+# 查看 runs/<project>/previews 后：
+node scripts/approve_direct_sticker.mjs ./runs/<project>
+node scripts/verify_direct_sticker.mjs ./runs/<project>/renders/final.<gif|png> ./runs/<project>/delivery-brief.json ./runs/<project>/visual-approval.json
+```
 
 ## 基本流程
 
